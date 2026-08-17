@@ -1,0 +1,40 @@
+{
+  "name": "lumaroute",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @lumaroute/desktop tauri dev",
+    "build": "pnpm -r build",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run --config vitest.workspace.ts",
+    "test:rust": "cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml",
+    "test:integration": "pnpm --filter @lumaroute/integration test",
+    "test:e2e": "playwright test",
+    "acceptance": "pnpm check && pnpm test:integration && pnpm test:e2e",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "check:sensitive": "node scripts/check-sensitive-output.mjs",
+    "check:mpv": "node --test scripts/verify-mpv.test.mjs && node scripts/verify-mpv.mjs manifest",
+    "fetch:mpv": "node scripts/fetch-mpv.mjs",
+    "package:checksums": "node scripts/package-checksums.mjs apps/desktop/src-tauri/target",
+    "smoke:packaged": "node scripts/smoke-packaged.mjs --current-platform",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:rust && pnpm check:boundaries && node scripts/check-sensitive-output.mjs tests/fixtures/security/diagnostics.json tests/fixtures/security/app.log && pnpm check:mpv"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^10.8.0",
+    "eslint-plugin-vue": "^10.10.0",
+    "prettier": "^3.9.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.66.0",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10",
+    "vue-eslint-parser": "^10.4.1"
+  }
+}

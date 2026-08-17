@@ -1,0 +1,14 @@
+{
+  "publicInfo": {
+    "Id": "server-a",
+    "ServerName": "Home"
+  },
+  "authenticate": {
+    "AccessToken": "token-a",
+    "ServerId": "server-a",
+    "User": {
+      "Id": "user-a",
+      "Name": "alice"
+    }
+  }
+}

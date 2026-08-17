@@ -1,0 +1,17 @@
+{
+  "PlaySessionId": "session-direct",
+  "MediaSources": [
+    {
+      "Id": "source-direct",
+      "Container": "mkv",
+      "SupportsDirectPlay": true,
+      "SupportsDirectStream": true,
+      "Bitrate": 8000000,
+      "RunTimeTicks": 72000000000,
+      "MediaStreams": [
+        { "Type": "Video", "Codec": "h264" },
+        { "Type": "Audio", "Codec": "aac" }
+      ]
+    }
+  ]
+}

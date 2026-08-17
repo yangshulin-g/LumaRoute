@@ -1,0 +1,14 @@
+---
+description: LumaRoute 项目上下文入口与事实来源
+alwaysApply: true
+---
+
+# LumaRoute 上下文
+
+- 首先读取根目录 `AGENTS.md`。
+- 编码前必须读取已批准 spec：`docs/superpowers/specs/2026-08-07-lumaroute-v0.1-design.md`。
+- 同时读取当前 plan：`docs/superpowers/plans/2026-08-07-lumaroute-v0.1-implementation.md`，按任务顺序、接口和验收执行。
+- 本规则只导航，不替代 spec 或 plan。
+- 产品/架构事实以 spec 为准；执行接口与顺序以 plan 为准；已实现行为必须由测试和代码证明。
+- 发现冲突时停止扩大改动：范围或架构变化先修订 spec 并获批，执行细节变化同步 plan。
+- 只更新承载该事实的单一来源；`AGENTS.md` 和规则仅在长期入口或护栏变化时更新。

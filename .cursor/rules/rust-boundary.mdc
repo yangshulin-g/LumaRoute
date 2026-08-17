@@ -1,0 +1,17 @@
+---
+description: Tauri Rust 原生边界与安全约束
+globs: "**/*.rs"
+alwaysApply: false
+---
+
+# Rust 原生边界
+
+- Rust 层保持最薄，只实现 Tauri 命令、mpv 进程与 IPC、系统安全凭证和必要系统能力。
+- 业务线路策略、服务端 DTO 映射、媒体浏览和进度策略留在 TypeScript core。
+- 每个 Tauri 命令使用显式输入/输出结构与稳定错误码；不得暴露任意 shell、任意路径或通用 IPC 透传。
+- mpv 可执行文件与参数采用应用内允许列表；Token 和敏感请求头不得进入 URL、进程参数或普通配置。
+- 每次播放创建随机 IPC 地址；Unix Socket 限当前用户，Windows Named Pipe 使用当前用户 ACL；结束时清理资源。
+- 凭证值仅交给系统安全存储或受限 mpv IPC，日志和错误只保留脱敏上下文。
+- 新命令先写 Rust 单元/集成失败测试，再实现最小行为；跨平台分支必须有平台测试或 CI 证据。
+
+具体命令名、事件负载和验收步骤以当前 implementation plan 为准。

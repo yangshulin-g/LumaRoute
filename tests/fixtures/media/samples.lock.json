@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "samples": [
+    {
+      "name": "h264",
+      "codec": "h264",
+      "sourceUrl": "lumaroute-fixture://media/samples/h264.mp4",
+      "sha256": "ecb0d2de355459d4e2d189e897c9b5ffbb4254c46015e7e473ec37572409ca2c",
+      "license": "CC0-1.0"
+    },
+    {
+      "name": "h265",
+      "codec": "hevc",
+      "sourceUrl": "lumaroute-fixture://media/samples/h265.mp4",
+      "sha256": "340e23f3223e2c4e80c84f0db6ff84f98f434991c62d164c1094686d38344488",
+      "license": "CC0-1.0"
+    },
+    {
+      "name": "av1",
+      "codec": "av1",
+      "sourceUrl": "lumaroute-fixture://media/samples/av1.mp4",
+      "sha256": "59f3142454da94d7fdeff7755cf4a3fc01ad255852d4b3259ef2d18a283a1d45",
+      "license": "CC0-1.0"
+    }
+  ]
+}

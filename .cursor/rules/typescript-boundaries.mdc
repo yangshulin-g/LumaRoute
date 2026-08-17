@@ -1,0 +1,19 @@
+---
+description: TypeScript 与 Vue 模块边界
+globs: "**/*.{ts,vue}"
+alwaysApply: false
+---
+
+# TypeScript 边界
+
+- `packages/core` 保持纯 TypeScript；不得导入 Vue、Pinia、Tauri API 或具体 SQLite 实现。
+- `packages/player` 只定义稳定播放契约与领域类型，不依赖 UI 或 Tauri。
+- Emby/Jellyfin 原始 DTO 只存在于各自适配器目录，进入 core 前转换为统一领域模型。
+- `apps/desktop` 是组合根：在此注入 HTTP、存储、凭证和播放器实现。
+- Vue 页面与组件只调用 store/application service；不得直接访问服务端 DTO、SQLite、凭证命令或 mpv IPC。
+- 跨边界依赖使用已批准 plan 中的端口签名，禁止用 `any`、全局单例或反向导入绕过边界。
+- 行为修改遵循红灯测试 → 最小实现 → 绿灯测试；测试与实现按职责就近放置。
+
+允许：`apps/desktop` 导入 `@lumaroute/core` 与 `@lumaroute/player`。
+
+禁止：`packages/core` 导入 `apps/desktop`、`@tauri-apps/*`、`vue` 或 `pinia`。

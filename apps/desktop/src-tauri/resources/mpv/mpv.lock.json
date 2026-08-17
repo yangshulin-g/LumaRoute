@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "builds": {
+    "x86_64-pc-windows-msvc": {
+      "version": "0.41.0",
+      "sourceUrl": "https://github.com/mpv-player/mpv/releases/download/v0.41.0/mpv-v0.41.0-x86_64-pc-windows-msvc.zip",
+      "sha256": "4e197f729f5071c6772f35fffd96e0f36e3e8a044bd9479b136bb09b7c6a80ff",
+      "executable": "mpv.exe",
+      "licenses": [
+        {
+          "id": "mpv",
+          "path": "resources/third-party/mpv-LICENSE.txt",
+          "sha256": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6"
+        },
+        {
+          "id": "ffmpeg",
+          "path": "resources/third-party/ffmpeg-LICENSE.txt",
+          "sha256": "b634ab5640e258563c536e658cad87080553df6f34f62269a21d554844e58bfe"
+        }
+      ],
+      "qualificationStatus": "archive-sealed"
+    },
+    "x86_64-apple-darwin": {
+      "version": "0.41.0",
+      "sourceUrl": "https://github.com/mpv-player/mpv/releases/download/v0.41.0/mpv-v0.41.0-macos-15-intel.zip",
+      "sha256": "41003617ab4f7784394b5ddea7ce51b3e0838e8cfc8166ad1a378b2eda3b583c",
+      "executable": "mpv",
+      "licenses": [
+        {
+          "id": "mpv",
+          "path": "resources/third-party/mpv-LICENSE.txt",
+          "sha256": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6"
+        },
+        {
+          "id": "ffmpeg",
+          "path": "resources/third-party/ffmpeg-LICENSE.txt",
+          "sha256": "b634ab5640e258563c536e658cad87080553df6f34f62269a21d554844e58bfe"
+        }
+      ],
+      "qualificationStatus": "archive-sealed"
+    },
+    "aarch64-apple-darwin": {
+      "version": "0.41.0-dev-g41f6a6450",
+      "sourceUrl": "https://github.com/mpv-player/mpv/releases/download/v0.41.0/mpv-v0.41.0-macos-15-arm.zip",
+      "sha256": "489cf6a54f57c54f86ad8d7cedaf5bb26848770d58dc059021214e2f689ee799",
+      "executable": "mpv",
+      "licenses": [
+        {
+          "id": "mpv",
+          "path": "resources/third-party/mpv-LICENSE.txt",
+          "sha256": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6"
+        },
+        {
+          "id": "ffmpeg",
+          "path": "resources/third-party/ffmpeg-LICENSE.txt",
+          "sha256": "b634ab5640e258563c536e658cad87080553df6f34f62269a21d554844e58bfe"
+        }
+      ],
+      "qualifiedAt": "2026-08-10T08:13:42.365Z",
+      "qualificationStatus": "qualified"
+    },
+    "x86_64-unknown-linux-gnu": {
+      "version": "0.41.0",
+      "sourceUrl": "https://github.com/pkgforge-dev/mpv-AppImage/releases/download/v0.41.0@2026-07-01_1782914175/mpv-v0.41.0-anylinux-x86_64.AppImage",
+      "sha256": "9ba489eb78c39fa4d5ef9cfaf9e80b92dcb9f69a05dd365d30255e6dca3c8fbd",
+      "executable": "mpv",
+      "licenses": [
+        {
+          "id": "mpv",
+          "path": "resources/third-party/mpv-LICENSE.txt",
+          "sha256": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6"
+        },
+        {
+          "id": "ffmpeg",
+          "path": "resources/third-party/ffmpeg-LICENSE.txt",
+          "sha256": "b634ab5640e258563c536e658cad87080553df6f34f62269a21d554844e58bfe"
+        }
+      ],
+      "qualificationStatus": "archive-sealed"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+[package]
+name = "lumaroute"
+version = "0.1.0"
+description = "LumaRoute desktop shell"
+authors = ["LumaRoute"]
+edition = "2021"
+
+[lib]
+name = "lumaroute_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tauri-plugin-sql = { version = "2", features = ["sqlite"] }
+tauri-plugin-http = "2"
+secrecy = "0.10.3"
+async-trait = "0.1.91"
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+tokio = { version = "1.53.1", features = ["process", "io-util", "net", "macros", "time", "sync", "rt-multi-thread"] }
+uuid = { version = "1.24.0", features = ["v4"] }
+
+[dev-dependencies]
+tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread"] }
+uuid = { version = "1.24.0", features = ["v4"] }
+
+[target."cfg(windows)".dependencies]
+windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Pipes", "Win32_Security_Authorization"] }

@@ -1,0 +1,22 @@
+{
+  "Items": [
+    {
+      "Id": "item-1",
+      "Name": "Arrival",
+      "Type": "Movie",
+      "Overview": "A linguist works with the military.",
+      "ProductionYear": 2016,
+      "RunTimeTicks": 72000000000,
+      "ParentId": null,
+      "SeriesId": null,
+      "IndexNumber": null,
+      "ImageTags": {
+        "Primary": "tag-1"
+      },
+      "UserData": {
+        "PlaybackPositionTicks": 1200000000
+      }
+    }
+  ],
+  "TotalRecordCount": 1
+}

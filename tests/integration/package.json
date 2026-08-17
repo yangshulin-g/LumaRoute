@@ -1,0 +1,20 @@
+{
+  "name": "@lumaroute/integration",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@lumaroute/core": "workspace:*",
+    "@lumaroute/player": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "testcontainers": "^11.14.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}
