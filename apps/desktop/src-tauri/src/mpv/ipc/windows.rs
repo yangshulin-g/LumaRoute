@@ -1,10 +1,22 @@
+use std::ffi::OsStr;
+use std::os::windows::ffi::OsStrExt;
 use std::time::Duration;
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeClient};
+use windows::core::PCWSTR;
+use windows::Win32::System::Pipes::WaitNamedPipeW;
 
+use super::is_retryable_windows_pipe_os_error;
 use crate::error::NativeError;
 use crate::mpv::process::format_mpv_socket_timeout;
+
+fn pipe_name_wide(name: &str) -> Vec<u16> {
+    OsStr::new(name)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
+}
 
 pub async fn wait_for_pipe(name: &str) -> Result<(), NativeError> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
@@ -20,19 +32,37 @@ pub async fn wait_for_pipe(name: &str) -> Result<(), NativeError> {
 }
 
 pub async fn pipe_exists(name: &str) -> bool {
-    ClientOptions::new().open(name).is_ok()
+    let wide = pipe_name_wide(name);
+    // 1 == NMPWAIT_NOWAIT: probe availability without consuming a pipe instance.
+    unsafe { WaitNamedPipeW(PCWSTR(wide.as_ptr()), 1).as_bool() }
 }
 
-pub async fn secure_pipe(name: &str) -> Result<(), NativeError> {
-    let _client = ClientOptions::new()
-        .open(name)
-        .map_err(|error| NativeError::player_unavailable(error.to_string()))?;
-    let _ = name;
+pub async fn secure_pipe(_name: &str) -> Result<(), NativeError> {
+    // Do not open a client here: mpv's Windows pipe often has a single instance.
+    // A probe connect would consume it and make the real connect return ERROR_PIPE_BUSY.
     Ok(())
 }
 
 pub async fn pipe_is_current_user_only(name: &str) -> bool {
-    secure_pipe(name).await.is_ok()
+    pipe_exists(name).await
+}
+
+async fn open_pipe_with_retry(name: &str) -> Result<NamedPipeClient, NativeError> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        match ClientOptions::new().open(name) {
+            Ok(client) => return Ok(client),
+            Err(error)
+                if is_retryable_windows_pipe_os_error(error.raw_os_error())
+                    && tokio::time::Instant::now() < deadline =>
+            {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+            Err(error) => {
+                return Err(NativeError::player_unavailable(error.to_string()));
+            }
+        }
+    }
 }
 
 pub struct WindowsWriter {
@@ -44,9 +74,7 @@ pub struct WindowsReader {
 }
 
 pub async fn connect(name: &str) -> Result<(WindowsWriter, WindowsReader), NativeError> {
-    let client = ClientOptions::new()
-        .open(name)
-        .map_err(|error| NativeError::player_unavailable(error.to_string()))?;
+    let client = open_pipe_with_retry(name).await?;
     let (read, write) = tokio::io::split(client);
     Ok((
         WindowsWriter { writer: write },

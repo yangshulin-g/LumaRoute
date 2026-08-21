@@ -155,3 +155,21 @@ pub async fn endpoint_reachable(endpoint: &str) -> bool {
         windows::pipe_exists(endpoint).await
     }
 }
+
+/// Windows ERROR_FILE_NOT_FOUND (2) and ERROR_PIPE_BUSY (231).
+pub fn is_retryable_windows_pipe_os_error(code: Option<i32>) -> bool {
+    matches!(code, Some(2) | Some(231))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_retryable_windows_pipe_os_error;
+
+    #[test]
+    fn retries_windows_pipe_busy_and_missing_pipe() {
+        assert!(is_retryable_windows_pipe_os_error(Some(231)));
+        assert!(is_retryable_windows_pipe_os_error(Some(2)));
+        assert!(!is_retryable_windows_pipe_os_error(Some(5)));
+        assert!(!is_retryable_windows_pipe_os_error(None));
+    }
+}

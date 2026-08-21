@@ -150,16 +150,37 @@ export async function resolveJellyfinImage(): Promise<string> {
   return override ?? JELLYFIN_IMAGE
 }
 
-export async function isContainerRuntimeAvailable(): Promise<boolean> {
-  try {
-    const { execFile } = await import('node:child_process')
-    const { promisify } = await import('node:util')
-    const execFileAsync = promisify(execFile)
-    await execFileAsync('docker', ['info'], { timeout: 5_000 })
-    return true
-  } catch {
-    return false
+async function defaultDockerProbe(): Promise<void> {
+  const { execFile } = await import('node:child_process')
+  const { promisify } = await import('node:util')
+  const execFileAsync = promisify(execFile)
+  await execFileAsync('docker', ['info'], { timeout: 15_000 })
+}
+
+export async function probeContainerRuntime(options: {
+  probe?: () => Promise<void>
+  attempts?: number
+  delayMs?: number
+} = {}): Promise<boolean> {
+  const probe = options.probe ?? defaultDockerProbe
+  const attempts = Math.max(1, options.attempts ?? 5)
+  const delayMs = options.delayMs ?? 400
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await probe()
+      return true
+    } catch {
+      if (attempt === attempts) return false
+      if (delayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs))
+      }
+    }
   }
+  return false
+}
+
+export async function isContainerRuntimeAvailable(): Promise<boolean> {
+  return probeContainerRuntime()
 }
 
 export async function startJellyfinContainer(): Promise<JellyfinHarness> {

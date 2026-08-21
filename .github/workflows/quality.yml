@@ -52,6 +52,8 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             patchelf
+          sudo service docker start || sudo systemctl start docker || true
+          docker info
       - run: pnpm install --frozen-lockfile
       - name: Fetch verified mpv sidecar for Rust/Tauri build
         run: node scripts/fetch-mpv.mjs --target "${{ env.RUST_TARGET }}"

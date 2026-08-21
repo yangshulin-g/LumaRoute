@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchJsonWithRetry, randomPassword } from './jellyfin-container'
+import { fetchJsonWithRetry, probeContainerRuntime, randomPassword } from './jellyfin-container'
 
 describe('Jellyfin harness helpers', () => {
   afterEach(() => {
@@ -14,6 +14,19 @@ describe('Jellyfin harness helpers', () => {
       expect(password).toMatch(/\d/)
       expect(password.length).toBeGreaterThanOrEqual(12)
     }
+  })
+
+  it('retries a transient docker probe failure then reports available', async () => {
+    const calls = { count: 0 }
+    const available = await probeContainerRuntime({
+      delayMs: 0,
+      probe: async () => {
+        calls.count += 1
+        if (calls.count < 3) throw new Error('docker daemon starting')
+      },
+    })
+    expect(available).toBe(true)
+    expect(calls.count).toBe(3)
   })
 
   it('retries a transient 500 from the startup wizard then succeeds', async () => {
