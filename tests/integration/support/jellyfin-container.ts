@@ -15,7 +15,7 @@ const FIXTURE_DIR = path.resolve(
 )
 
 export function randomPassword(): string {
-  return `lr-${randomBytes(12).toString('base64url')}`
+  return `Lr1-${randomBytes(12).toString('base64url')}`
 }
 
 export function controlledFixtureDirectory(): string {
@@ -82,7 +82,7 @@ export class JellyfinHarness {
     this.password = options.password
     const base = this.baseUrl()
 
-    await fetchJson(`${base}/Startup/Configuration`, {
+    await fetchJsonWithRetry(`${base}/Startup/Configuration`, {
       method: 'POST',
       body: {
         UICulture: 'en-US',
@@ -90,15 +90,15 @@ export class JellyfinHarness {
         PreferredMetadataLanguage: 'en',
       },
     })
-    await fetchJson(`${base}/Startup/User`, {
+    await fetchJsonWithRetry(`${base}/Startup/User`, {
       method: 'POST',
       body: { Name: options.username, Password: options.password },
     })
-    await fetchJson(`${base}/Startup/RemoteAccess`, {
+    await fetchJsonWithRetry(`${base}/Startup/RemoteAccess`, {
       method: 'POST',
       body: { EnableRemoteAccess: false, EnableAutomaticPortMapping: false },
     })
-    await fetchJson(`${base}/Startup/Complete`, { method: 'POST' })
+    await fetchJsonWithRetry(`${base}/Startup/Complete`, { method: 'POST' })
 
     const auth = await fetchJson<{ AccessToken: string; User: { Id: string } }>(
       `${base}/Users/AuthenticateByName`,
@@ -187,14 +187,15 @@ export function controlledPublicSample(): string {
   return '/media'
 }
 
-async function fetchJson<T = unknown>(
-  url: string,
-  init: {
-    method?: string
-    headers?: Record<string, string>
-    body?: unknown
-  } = {},
-): Promise<T> {
+type FetchJsonInit = {
+  method?: string
+  headers?: Record<string, string>
+  body?: unknown
+  attempts?: number
+  retryDelayMs?: number
+}
+
+async function fetchJsonOnce<T>(url: string, init: FetchJsonInit): Promise<T> {
   const response = await fetch(url, {
     method: init.method ?? 'GET',
     headers: {
@@ -211,6 +212,32 @@ async function fetchJson<T = unknown>(
   const text = await response.text()
   if (!text) return undefined as T
   return JSON.parse(text) as T
+}
+
+async function fetchJson<T = unknown>(url: string, init: FetchJsonInit = {}): Promise<T> {
+  const attempts = Math.max(1, init.attempts ?? 1)
+  const retryDelayMs = init.retryDelayMs ?? 500
+  let lastError: Error | undefined
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fetchJsonOnce<T>(url, init)
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+      const retryable = /HTTP 5\d\d/.test(lastError.message)
+      if (!retryable || attempt === attempts) throw lastError
+      if (retryDelayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
+      }
+    }
+  }
+  throw lastError ?? new Error('Jellyfin harness request failed')
+}
+
+export async function fetchJsonWithRetry<T = unknown>(
+  url: string,
+  init: FetchJsonInit = {},
+): Promise<T> {
+  return fetchJson<T>(url, { attempts: 8, retryDelayMs: 500, ...init })
 }
 
 async function waitForItems(base: string, token: string, userId: string): Promise<void> {

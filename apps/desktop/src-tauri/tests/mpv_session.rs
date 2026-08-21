@@ -4,11 +4,29 @@ use std::time::Duration;
 use lumaroute_lib::mpv::protocol::{NativePlaybackPlan, NativePlayerEvent};
 use lumaroute_lib::mpv::session::MpvSession;
 
+fn without_windows_verbatim_prefix(path: PathBuf) -> PathBuf {
+    const PREFIX: &str = r"\\?\";
+    match path.to_str().and_then(|value| value.strip_prefix(PREFIX)) {
+        Some(stripped) => PathBuf::from(stripped),
+        None => path,
+    }
+}
+
 fn fake_mpv_path() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/integration/support/fake-mpv.mjs")
-        .canonicalize()
-        .expect("fake-mpv.mjs must exist")
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../tests/integration/support/fake-mpv.mjs");
+    without_windows_verbatim_prefix(path.canonicalize().expect("fake-mpv.mjs must exist"))
+}
+
+#[test]
+fn strips_windows_verbatim_prefix_so_node_can_load_the_script() {
+    let stripped = without_windows_verbatim_prefix(PathBuf::from(r"\\?\D:\repo\fake-mpv.mjs"));
+    assert!(
+        !stripped.to_string_lossy().starts_with(r"\\?\"),
+        "Node 22 realpathSync throws EISDIR on drive roots for verbatim paths: {}",
+        stripped.display()
+    );
+    assert_eq!(stripped, PathBuf::from(r"D:\repo\fake-mpv.mjs"));
 }
 
 fn test_plan() -> NativePlaybackPlan {
