@@ -99,6 +99,32 @@ async fn endpoint_exists(endpoint: &str) -> bool {
     }
 }
 
+#[cfg(target_os = "macos")]
+#[test]
+fn packaged_mpv_has_a_valid_standalone_signature_when_available() {
+    let sidecar = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("resources/bin")
+        .join(format!(
+            "mpv-{}",
+            lumaroute_lib::mpv::process::rust_target_triple()
+        ));
+    if !sidecar.is_file() {
+        eprintln!("skip: packaged mpv sidecar missing at {}", sidecar.display());
+        return;
+    }
+
+    let output = std::process::Command::new("codesign")
+        .args(["--verify", "--strict", "--verbose=4"])
+        .arg(&sidecar)
+        .output()
+        .expect("run codesign verification");
+    assert!(
+        output.status.success(),
+        "standalone sidecar signature must remain valid after extraction: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 #[tokio::test]
 async fn real_packaged_mpv_creates_ipc_socket_when_available() {
     let sidecar = Path::new(env!("CARGO_MANIFEST_DIR"))

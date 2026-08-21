@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { execFileSync } from 'node:child_process'
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, relative, resolve } from 'node:path'
@@ -87,6 +88,12 @@ async function main() {
     const runtimeRoot = dirname(sidecar)
     for (const companion of companionRuntimeFiles(executable)) {
       copyPreservingRelative(companion, dirname(executable), runtimeRoot)
+    }
+
+    if (target.includes('apple-darwin')) {
+      // The upstream binary is signed as part of mpv.app and its signature
+      // becomes invalid when Tauri extracts it as a standalone sidecar.
+      execFileSync('codesign', ['--force', '--sign', '-', sidecar], { stdio: 'inherit' })
     }
 
     for (const license of build.licenses) {
