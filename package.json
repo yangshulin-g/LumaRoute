@@ -19,6 +19,7 @@
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "check:sensitive": "node scripts/check-sensitive-output.mjs",
     "check:mpv": "node --test scripts/verify-mpv.test.mjs && node scripts/verify-mpv.mjs manifest",
+    "check:mpv:installed": "node scripts/verify-mpv.mjs installed --fixtures h264,h265,av1",
     "fetch:mpv": "node scripts/fetch-mpv.mjs",
     "package:checksums": "node scripts/package-checksums.mjs apps/desktop/src-tauri/target",
     "smoke:packaged": "node scripts/smoke-packaged.mjs --current-platform",

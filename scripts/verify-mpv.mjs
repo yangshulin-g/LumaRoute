@@ -292,22 +292,89 @@ async function verifyInstalledBinary(target, executablePath, minimumVersion) {
   return version
 }
 
+export function sampleName(pathOrName) {
+  return basename(String(pathOrName)).replace(/\.[^.]+$/, '')
+}
+
+function fixtureNames(fixtures) {
+  return String(fixtures || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+}
+
+export async function selectRequiredSamples(fixtures, lockPath = SAMPLES_LOCK_PATH) {
+  const wanted = new Set(fixtureNames(fixtures))
+  const all = await ensureSamplesDownloaded(lockPath)
+  return all.filter((path) => wanted.has(sampleName(path)))
+}
+
+export async function verifyInstalledFixture({
+  fixtures = 'h264,h265,av1',
+  requireIpc,
+  probe,
+  ipc,
+} = {}) {
+  const names = fixtureNames(fixtures)
+  const ipcRequired = requireIpc ?? ipc !== false
+  if (names.join(',') !== 'h264,h265,av1' || !ipcRequired) {
+    throw new Error('h264,h265,av1 and JSON IPC are required for Internal Alpha')
+  }
+  for (const name of names) {
+    if (typeof probe === 'function') await probe(name)
+  }
+  if (typeof ipc === 'function') await ipc()
+}
+
+export async function probeSoftwareDecode(executable, samplePaths) {
+  for (const sample of samplePaths) {
+    const name = sampleName(sample)
+    const probe = runCaptured(executable, [
+      '--no-config',
+      '--vo=null',
+      '--ao=null',
+      '--frames=1',
+      '--quiet',
+      sample,
+    ])
+    if (probe.status !== 0) {
+      throw new Error(`${name} software decode failed`)
+    }
+    const label =
+      name === 'h264' ? 'H.264' : name === 'h265' ? 'H.265' : name === 'av1' ? 'AV1' : name
+    console.log(`PASS ${label} software decode`)
+  }
+}
+
+function classifyIpcFailure(error) {
+  const raw = String(error?.message ?? error)
+  if (/sensitive|header/i.test(raw)) return 'header-leak'
+  if (/timeout/i.test(raw)) return 'ipc-timeout'
+  if (/ECONNREFUSED|ENOENT|EPIPE|connect/i.test(raw)) return 'ipc-connect'
+  if (/decode|codec/i.test(raw)) return 'decode-failed'
+  return 'ipc-failed'
+}
+
+function assertNoSensitiveLeak(text, surface) {
+  if (/authorization|bearer|x-emby-token|token=/i.test(text)) {
+    throw new Error(`sensitive headers leaked into ${surface}`)
+  }
+}
+
 async function ipcSmoke(executable, samplePaths) {
   const runtime = mkdtempSync(join(tmpdir(), 'lumaroute-mpv-ipc-'))
   const socket = join(runtime, 'mpv.sock')
   const { spawn } = await import('node:child_process')
-  const proc = spawn(
-    executable,
-    [
-      '--idle=yes',
-      '--force-window=no',
-      '--no-terminal',
-      '--vo=null',
-      '--ao=null',
-      `--input-ipc-server=${socket}`,
-    ],
-    { stdio: ['ignore', 'pipe', 'pipe'] },
-  )
+  const args = [
+    '--idle=yes',
+    '--force-window=no',
+    '--no-terminal',
+    '--vo=null',
+    '--ao=null',
+    `--input-ipc-server=${socket}`,
+  ]
+  assertNoSensitiveLeak(args.join(' '), 'process arguments')
+  const proc = spawn(executable, args, { stdio: ['ignore', 'pipe', 'pipe'] })
 
   const logs = []
   proc.stdout.on('data', (chunk) => logs.push(String(chunk)))
@@ -319,16 +386,17 @@ async function ipcSmoke(executable, samplePaths) {
     for (const sample of samplePaths) {
       await sendIpc(socket, { command: ['loadfile', sample, 'replace'] })
       await sendIpc(socket, { command: ['set_property', 'pause', true] })
+      await sendIpc(socket, { command: ['set_property', 'pause', false] })
       await sendIpc(socket, { command: ['seek', 0, 'absolute'] })
       await sendIpc(socket, { command: ['stop'] })
     }
     await sendIpc(socket, { command: ['quit'] })
     const joined = logs.join('')
-    if (/authorization|bearer|token=/i.test(joined)) {
-      throw new Error('sensitive headers leaked into mpv logs')
-    }
+    assertNoSensitiveLeak(joined, 'logs')
     console.log('PASS JSON IPC startup/load/pause/seek/stop/end')
     console.log('PASS headers absent from process arguments and logs')
+  } catch (error) {
+    throw new Error(`JSON IPC failed: ${classifyIpcFailure(error)}`, { cause: error })
   } finally {
     if (!proc.killed) proc.kill('SIGKILL')
     rmSync(runtime, { recursive: true, force: true })
@@ -415,34 +483,10 @@ export async function qualifyTarget({ target, archive, sourceUrl, fixtures }) {
     const version = parseVersion(`${versionResult.stdout}\n${versionResult.stderr}`)
     console.log('PASS executable version captured')
 
-    const samplePaths = await ensureSamplesDownloaded()
-    const wanted = new Set(
-      String(fixtures || 'h264,h265,av1')
-        .split(',')
-        .map((value) => value.trim())
-        .filter(Boolean),
-    )
-    const selected = samplePaths.filter((path) => wanted.has(basename(path).replace(/\.[^.]+$/, '')))
+    const selected = await selectRequiredSamples(fixtures || 'h264,h265,av1')
     if (selected.length === 0) throw new Error('no fixtures selected for qualify')
 
-    for (const sample of selected) {
-      const name = basename(sample).replace(/\.[^.]+$/, '')
-      const probe = runCaptured(executable, [
-        '--no-config',
-        '--vo=null',
-        '--ao=null',
-        '--frames=1',
-        '--quiet',
-        sample,
-      ])
-      if (probe.status !== 0) {
-        throw new Error(`${name} software decode failed: ${probe.stderr || probe.stdout}`)
-      }
-      const label =
-        name === 'h264' ? 'H.264' : name === 'h265' ? 'H.265' : name === 'av1' ? 'AV1' : name
-      console.log(`PASS ${label} software decode`)
-    }
-
+    await probeSoftwareDecode(executable, selected)
     await ipcSmoke(executable, selected)
 
     let licenseSources = discoverLicenseFiles(work)
@@ -549,19 +593,40 @@ export async function recordSamples(records) {
   return lock
 }
 
-export async function verifyInstalled(target = currentRustTarget()) {
-  const manifest = loadManifest()
-  const build = manifest.builds[target]
-  if (!build) throw new Error(`missing target: ${target}`)
-  const sidecar = sidecarPathForTarget(target, build.executable)
-  const version = await verifyInstalledBinary(target, sidecar, build.version)
+async function verifyLicenseHashes(build) {
   for (const license of build.licenses) {
     const path = join(ROOT, 'apps/desktop/src-tauri', license.path)
     if (!existsSync(path)) throw new Error(`missing license file: ${license.path}`)
     const digest = await sha256File(path)
     if (digest !== license.sha256) throw new Error(`license hash mismatch: ${license.path}`)
   }
-  console.log(`PASS installed mpv ${version} for ${target}`)
+}
+
+export async function verifyInstalled(
+  target = currentRustTarget(),
+  options = { fixtures: 'h264,h265,av1', requireIpc: true },
+) {
+  const manifest = loadManifest()
+  const build = manifest.builds[target]
+  if (!build) throw new Error(`missing target: ${target}`)
+  const sidecar = sidecarPathForTarget(target, build.executable)
+  const version = await verifyInstalledBinary(target, sidecar, build.version)
+  const selected = await selectRequiredSamples(options.fixtures)
+  if (selected.map(sampleName).join(',') !== 'h264,h265,av1' || !options.requireIpc) {
+    throw new Error('h264,h265,av1 and JSON IPC are required for Internal Alpha')
+  }
+  await verifyInstalledFixture({
+    fixtures: selected.map(sampleName).join(','),
+    requireIpc: options.requireIpc,
+    probe: async (label) => {
+      const sample = selected.find((path) => sampleName(path) === label)
+      if (!sample) throw new Error(`${label} software decode failed`)
+      await probeSoftwareDecode(sidecar, [sample])
+    },
+    ipc: () => ipcSmoke(sidecar, selected),
+  })
+  await verifyLicenseHashes(build)
+  console.log(`PASS installed mpv qualification ${version} for ${target}`)
   return version
 }
 
@@ -600,7 +665,10 @@ async function main(argv = process.argv.slice(2)) {
     return
   }
   if (command === 'installed') {
-    await verifyInstalled(args.target || currentRustTarget())
+    await verifyInstalled(args.target || currentRustTarget(), {
+      fixtures: args.fixtures || 'h264,h265,av1',
+      requireIpc: args.ipc !== 'false',
+    })
     return
   }
   if (command === 'qualify') {

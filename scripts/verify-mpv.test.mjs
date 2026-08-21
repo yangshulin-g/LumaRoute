@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { validateManifest } from './verify-mpv.mjs'
+import { validateManifest, verifyInstalledFixture } from './verify-mpv.mjs'
 
 function fixtureManifest() {
   const build = (extra = {}) => ({
@@ -55,5 +55,24 @@ describe('mpv manifest', () => {
     manifest.builds['x86_64-pc-windows-msvc'].sourceUrl = 'https://example.invalid/latest.zip'
     manifest.builds['x86_64-pc-windows-msvc'].sha256 = 'abc'
     assert.throws(() => validateManifest(manifest))
+  })
+})
+
+describe('installed qualification', () => {
+  it('requires all three controlled codecs for installed qualification', async () => {
+    const calls = []
+    await verifyInstalledFixture({
+      fixtures: 'h264,h265,av1',
+      probe: (label) => calls.push(label),
+      ipc: () => calls.push('ipc'),
+    })
+    assert.deepEqual(calls, ['h264', 'h265', 'av1', 'ipc'])
+  })
+
+  it('fails when a selected codec or IPC smoke is skipped', async () => {
+    await assert.rejects(
+      verifyInstalledFixture({ fixtures: 'h264,h265', ipc: false }),
+      /h264,h265,av1 and JSON IPC are required/,
+    )
   })
 })

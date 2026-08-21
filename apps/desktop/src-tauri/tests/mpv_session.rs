@@ -139,6 +139,15 @@ process.on('SIGINT', () => server.close(() => process.exit(0)))
     }
 }
 
+fn packaged_sidecar_path() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("resources/bin")
+        .join(format!(
+            "mpv-{}",
+            lumaroute_lib::mpv::process::rust_target_triple()
+        ))
+}
+
 fn tempfile_runtime_dir() -> PathBuf {
     // Keep the directory path short: macOS unix socket paths are capped near 104 bytes.
     let dir = std::env::temp_dir().join(format!("lr-{}", &uuid::Uuid::new_v4().to_string()[..8]));
@@ -167,12 +176,7 @@ async fn endpoint_exists(endpoint: &str) -> bool {
 #[cfg(target_os = "macos")]
 #[test]
 fn packaged_mpv_has_a_valid_standalone_signature_when_available() {
-    let sidecar = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("resources/bin")
-        .join(format!(
-            "mpv-{}",
-            lumaroute_lib::mpv::process::rust_target_triple()
-        ));
+    let sidecar = packaged_sidecar_path();
     if !sidecar.is_file() {
         eprintln!("skip: packaged mpv sidecar missing at {}", sidecar.display());
         return;
@@ -192,12 +196,7 @@ fn packaged_mpv_has_a_valid_standalone_signature_when_available() {
 
 #[tokio::test]
 async fn real_packaged_mpv_creates_ipc_socket_when_available() {
-    let sidecar = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("resources/bin")
-        .join(format!(
-            "mpv-{}",
-            lumaroute_lib::mpv::process::rust_target_triple()
-        ));
+    let sidecar = packaged_sidecar_path();
     if !sidecar.is_file() {
         eprintln!("skip: packaged mpv sidecar missing at {}", sidecar.display());
         return;
@@ -207,6 +206,24 @@ async fn real_packaged_mpv_creates_ipc_socket_when_available() {
     let mut session = MpvSession::start_with_executable(&runtime_dir, &sidecar)
         .await
         .expect("real mpv should create IPC with equals-form --input-ipc-server");
+    assert!(endpoint_exists(session.endpoint_display()).await);
+    session.stop().await.expect("stop real mpv");
+}
+
+#[tokio::test]
+async fn real_packaged_mpv_creates_ipc_socket_when_required() {
+    let sidecar = packaged_sidecar_path();
+    if !sidecar.is_file() {
+        if std::env::var("LUMAROUTE_REQUIRE_REAL_MPV").as_deref() == Ok("1") {
+            panic!("required packaged mpv sidecar missing at {}", sidecar.display());
+        }
+        eprintln!("skip: packaged mpv sidecar missing at {}", sidecar.display());
+        return;
+    }
+    let runtime_dir = tempfile_runtime_dir();
+    let mut session = MpvSession::start_with_executable(&runtime_dir, &sidecar)
+        .await
+        .expect("real packaged mpv must create IPC");
     assert!(endpoint_exists(session.endpoint_display()).await);
     session.stop().await.expect("stop real mpv");
 }
