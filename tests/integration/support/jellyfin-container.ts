@@ -6,8 +6,8 @@ import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainer
 import { JellyfinAdapter, type AuthSession, type LoginInput } from '@lumaroute/core'
 import { NodeHttpTransport } from './memory-ports'
 
-/** Prefer an env override; otherwise pin a concrete Jellyfin release tag. */
-export const JELLYFIN_IMAGE_TAG = 'jellyfin/jellyfin:10.10.7'
+export const JELLYFIN_IMAGE =
+  'jellyfin/jellyfin@sha256:7ae36aab93ef9b6aaff02b37f8bb23df84bb2d7a3f6054ec8fc466072a648ce2'
 
 const FIXTURE_DIR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -135,9 +135,19 @@ export class JellyfinHarness {
   }
 }
 
+export function requireContainerRuntime(available: boolean): boolean {
+  if (!available && process.env.LUMAROUTE_REQUIRE_CONTAINER === '1') {
+    throw new Error('Jellyfin container runtime is required but unavailable')
+  }
+  return available
+}
+
 export async function resolveJellyfinImage(): Promise<string> {
-  if (process.env.LUMAROUTE_JELLYFIN_IMAGE) return process.env.LUMAROUTE_JELLYFIN_IMAGE
-  return JELLYFIN_IMAGE_TAG
+  const override = process.env.LUMAROUTE_JELLYFIN_IMAGE
+  if (override && !/@sha256:[0-9a-f]{64}$/.test(override)) {
+    throw new Error('LUMAROUTE_JELLYFIN_IMAGE must use an immutable sha256 digest')
+  }
+  return override ?? JELLYFIN_IMAGE
 }
 
 export async function isContainerRuntimeAvailable(): Promise<boolean> {

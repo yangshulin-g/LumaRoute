@@ -10,8 +10,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-13, macos-14, ubuntu-22.04]
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-13
+            target: x86_64-apple-darwin
+          - os: macos-14
+            target: aarch64-apple-darwin
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
     runs-on: ${{ matrix.os }}
+    env:
+      RUST_TARGET: ${{ matrix.target }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -22,6 +32,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
       - name: Install Linux Tauri system packages
         if: runner.os == 'Linux'
         run: |
@@ -38,6 +50,8 @@ jobs:
             librsvg2-dev \
             patchelf
       - run: pnpm install --frozen-lockfile
+      - name: Fetch verified mpv sidecar for Rust/Tauri build
+        run: node scripts/fetch-mpv.mjs --target "$RUST_TARGET"
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
@@ -45,8 +59,15 @@ jobs:
       - run: pnpm check:boundaries
       - run: node --test scripts/verify-mpv.test.mjs
       - run: node scripts/verify-mpv.mjs manifest
-      - name: Integration contracts
+      - name: Integration contracts without live container
+        if: runner.os != 'Linux'
         run: pnpm test:integration
+      - name: Required live Jellyfin contract
+        if: runner.os == 'Linux'
+        run: pnpm test:integration
+        env:
+          LUMAROUTE_REQUIRE_CONTAINER: '1'
+          LUMAROUTE_JELLYFIN_IMAGE: jellyfin/jellyfin@sha256:7ae36aab93ef9b6aaff02b37f8bb23df84bb2d7a3f6054ec8fc466072a648ce2
       - name: Install Playwright browser
         run: pnpm exec playwright install --with-deps chromium
       - name: UI journey E2E
