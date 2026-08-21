@@ -1,8 +1,42 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { verifyChecksumSibling } from './package-checksums.mjs'
 import { currentRustTarget, loadManifest, sidecarPathForTarget } from './verify-mpv.mjs'
+
+const ALPHA_WARNINGS = [
+  'UNSIGNED OR UNNOTARIZED',
+  'INTERNAL TECHNICAL VALIDATION ONLY',
+  'OPERATING SYSTEM SECURITY WARNINGS MAY APPEAR',
+  'NOT FOR PUBLIC END-USER DISTRIBUTION',
+]
+
+export function expectedExtensions(target) {
+  if (target === 'x86_64-pc-windows-msvc') return ['.msi', '-setup.exe']
+  if (target === 'x86_64-apple-darwin' || target === 'aarch64-apple-darwin') return ['.dmg']
+  if (target === 'x86_64-unknown-linux-gnu') return ['.AppImage', '.deb']
+  throw new Error(`unsupported package target: ${target}`)
+}
+
+export function validateAlphaMarker(text) {
+  for (const line of ALPHA_WARNINGS) {
+    if (!text.includes(line)) throw new Error(`missing Internal Alpha warning: ${line}`)
+  }
+}
+
+export function requireArtifacts(files, target) {
+  const artifacts = []
+  for (const extension of expectedExtensions(target)) {
+    const matches = files.filter((file) => file.endsWith(extension))
+    if (matches.length === 0) {
+      throw new Error(`missing packaged installer for ${target}: ${extension}`)
+    }
+    artifacts.push(...matches)
+  }
+  return [...new Set(artifacts)]
+}
 
 function parseArgs(argv) {
   const args = { _: [] }
@@ -38,19 +72,6 @@ function walk(root) {
   return out
 }
 
-function findArtifacts(targetDir, target) {
-  const files = walk(targetDir)
-  const wanted = []
-  if (target.includes('windows')) {
-    wanted.push(...files.filter((f) => f.endsWith('.msi') || f.endsWith('-setup.exe')))
-  } else if (target.includes('apple-darwin')) {
-    wanted.push(...files.filter((f) => f.endsWith('.dmg')))
-  } else if (target.includes('linux')) {
-    wanted.push(...files.filter((f) => f.endsWith('.AppImage') || f.endsWith('.deb')))
-  }
-  return [...new Set(wanted)]
-}
-
 function smokeSidecar(target) {
   const manifest = loadManifest()
   const build = manifest.builds[target]
@@ -65,37 +86,42 @@ function smokeSidecar(target) {
   console.log((result.stdout || result.stderr).trim().split('\n')[0])
 }
 
-function main() {
+function findAlphaMarker(targetDir) {
+  const markerCandidates = [
+    join(targetDir, 'release', 'UNSIGNED-DEVELOPMENT-BUILD.txt'),
+    join(targetDir, 'UNSIGNED-DEVELOPMENT-BUILD.txt'),
+  ]
+  const marker = markerCandidates.find((path) => existsSync(path))
+  if (!marker) throw new Error('missing UNSIGNED-DEVELOPMENT-BUILD.txt')
+  return marker
+}
+
+export async function smokePackaged({ target, targetDir }) {
+  smokeSidecar(target)
+  if (!existsSync(targetDir)) {
+    throw new Error(`missing package target directory: ${targetDir}`)
+  }
+  const artifacts = requireArtifacts(walk(targetDir), target)
+  for (const artifact of artifacts) {
+    await verifyChecksumSibling(artifact, targetDir)
+    console.log(`PASS artifact present: ${artifact}`)
+  }
+  const marker = findAlphaMarker(targetDir)
+  validateAlphaMarker(readFileSync(marker, 'utf8'))
+  console.log('PASS unsigned development marker present')
+}
+
+async function main() {
   const args = parseArgs(process.argv.slice(2))
   const target = args['current-platform'] ? currentRustTarget() : args.target || currentRustTarget()
   const targetDir = resolve(args.dir || 'apps/desktop/src-tauri/target')
-
-  smokeSidecar(target)
-
-  if (existsSync(targetDir)) {
-    const artifacts = findArtifacts(targetDir, target)
-    if (artifacts.length === 0) {
-      console.warn(`No packaged installers found under ${targetDir}; sidecar smoke only.`)
-    } else {
-      for (const artifact of artifacts) {
-        const sibling = `${artifact}.sha256`
-        if (!existsSync(sibling)) {
-          throw new Error(`missing checksum sibling: ${sibling}`)
-        }
-        console.log(`PASS artifact present: ${artifact}`)
-      }
-      const markerCandidates = [
-        join(targetDir, 'release', 'UNSIGNED-DEVELOPMENT-BUILD.txt'),
-        join(targetDir, 'UNSIGNED-DEVELOPMENT-BUILD.txt'),
-      ]
-      if (!markerCandidates.some((path) => existsSync(path))) {
-        throw new Error('missing UNSIGNED-DEVELOPMENT-BUILD.txt')
-      }
-      console.log('PASS unsigned development marker present')
-    }
-  } else {
-    console.warn(`Package target directory missing (${targetDir}); sidecar smoke only.`)
-  }
+  await smokePackaged({ target, targetDir })
 }
 
-main()
+const isDirect = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+if (isDirect) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error)
+    process.exit(1)
+  })
+}

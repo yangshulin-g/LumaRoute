@@ -55,12 +55,17 @@ jobs:
             librsvg2-dev \
             patchelf
       - run: pnpm install --frozen-lockfile
-      - run: node scripts/fetch-mpv.mjs --target "$RUST_TARGET"
-      - run: node scripts/verify-mpv.mjs installed --target "$RUST_TARGET"
+      - run: node scripts/fetch-mpv.mjs --target "${{ env.RUST_TARGET }}"
+      - name: Qualify installed mpv with controlled samples and JSON IPC
+        run: node scripts/verify-mpv.mjs installed --target "${{ env.RUST_TARGET }}" --fixtures h264,h265,av1
+      - name: Require real sidecar Rust smoke
+        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --test mpv_session -- --nocapture
+        env:
+          LUMAROUTE_REQUIRE_REAL_MPV: '1'
       - name: Build unsigned desktop packages
-        run: pnpm --filter @lumaroute/desktop tauri build --target "$RUST_TARGET" $BUNDLE_ARGS
+        run: pnpm --filter @lumaroute/desktop tauri build --target "${{ env.RUST_TARGET }}" ${{ env.BUNDLE_ARGS }}
       - run: node scripts/package-checksums.mjs apps/desktop/src-tauri/target
-      - run: node scripts/smoke-packaged.mjs --target "$RUST_TARGET"
+      - run: node scripts/smoke-packaged.mjs --target "${{ env.RUST_TARGET }}"
       - name: Record acceptance pointer
         run: |
           echo "Attach this workflow run URL to docs/release/v0.1-acceptance.md automated packaging evidence."

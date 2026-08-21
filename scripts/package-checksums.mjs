@@ -4,17 +4,53 @@ import {
   createReadStream,
   existsSync,
   mkdirSync,
+  readFileSync,
   readdirSync,
   statSync,
   writeFileSync,
 } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { pipeline } from 'node:stream/promises'
 
-async function sha256File(path) {
+export const ALPHA_MARKER_LINES = [
+  'LumaRoute v0.1 Internal Alpha',
+  'UNSIGNED OR UNNOTARIZED',
+  'INTERNAL TECHNICAL VALIDATION ONLY',
+  'OPERATING SYSTEM SECURITY WARNINGS MAY APPEAR',
+  'NOT FOR PUBLIC END-USER DISTRIBUTION',
+]
+
+export async function sha256File(path) {
   const hash = createHash('sha256')
   await pipeline(createReadStream(path), hash)
   return hash.digest('hex')
+}
+
+export async function writeChecksum(artifact, root) {
+  const digest = await sha256File(artifact)
+  const sibling = `${artifact}.sha256`
+  writeFileSync(sibling, `${digest}  ${relative(root, artifact)}\n`)
+  return sibling
+}
+
+export async function verifyChecksumSibling(artifact, root) {
+  const sibling = `${artifact}.sha256`
+  if (!existsSync(sibling)) throw new Error(`missing checksum sibling: ${sibling}`)
+  const [recorded, relativeName] = readFileSync(sibling, 'utf8').trim().split(/\s{2,}/)
+  if (relativeName !== relative(root, artifact)) throw new Error(`checksum path mismatch: ${artifact}`)
+  const actual = await sha256File(artifact)
+  if (recorded !== actual) throw new Error(`checksum mismatch: ${artifact}`)
+}
+
+export function writeAlphaMarker(markerDir) {
+  mkdirSync(markerDir, { recursive: true })
+  const marker = join(markerDir, 'UNSIGNED-DEVELOPMENT-BUILD.txt')
+  writeFileSync(
+    marker,
+    [...ALPHA_MARKER_LINES, `generatedAt=${new Date().toISOString()}`, ''].join('\n'),
+  )
+  return marker
 }
 
 function walk(root) {
@@ -57,34 +93,23 @@ async function main() {
 
   const unique = [...new Set(artifacts)]
   if (unique.length === 0) {
-    console.warn('No package artifacts found; writing unsigned marker only.')
+    throw new Error(`no package artifacts found under ${root}`)
   }
 
   for (const artifact of unique) {
-    const digest = await sha256File(artifact)
-    const sibling = `${artifact}.sha256`
-    writeFileSync(sibling, `${digest}  ${relative(root, artifact)}\n`)
+    const sibling = await writeChecksum(artifact, root)
     console.log(`wrote ${sibling}`)
   }
 
   const markerDir = existsSync(join(root, 'release')) ? join(root, 'release') : root
-  mkdirSync(markerDir, { recursive: true })
-  const marker = join(markerDir, 'UNSIGNED-DEVELOPMENT-BUILD.txt')
-  writeFileSync(
-    marker,
-    [
-      'LumaRoute development package',
-      'This build is intentionally UNSIGNED.',
-      'macOS public distribution requires Apple signing and notarization.',
-      'Windows public distribution requires a code-signing certificate.',
-      `generatedAt=${new Date().toISOString()}`,
-      '',
-    ].join('\n'),
-  )
+  const marker = writeAlphaMarker(markerDir)
   console.log(`wrote ${marker}`)
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error)
-  process.exit(1)
-})
+const isDirect = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+if (isDirect) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error)
+    process.exit(1)
+  })
+}
