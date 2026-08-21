@@ -10,6 +10,7 @@ import {
   libraryOptionsForFixture,
   probeContainerRuntime,
   randomPassword,
+  virtualFolderCreateUrl,
 } from './jellyfin-container'
 
 describe('Jellyfin harness helpers', () => {
@@ -71,6 +72,9 @@ describe('Jellyfin harness helpers', () => {
       SaveLocalMetadata: false,
       EnableRealtimeMonitor: false,
     })
+    expect(virtualFolderCreateUrl('http://127.0.0.1:8096', 'Movies', '/media')).toContain(
+      'paths=%2Fmedia',
+    )
   })
 
   it('retries a transient 500 from the startup wizard then succeeds', async () => {

@@ -105,26 +105,26 @@ export class JellyfinHarness {
     }
     this.password = options.password
 
-    await fetchJson(
-      `${base}/Library/VirtualFolders?name=Movies&collectionType=movies&refreshLibrary=true`,
-      {
-        method: 'POST',
-        headers: { 'X-Emby-Token': auth.AccessToken },
-        body: {
-          LibraryOptions: libraryOptionsForFixture(options.mediaFixture),
-        },
+    await fetchJson(virtualFolderCreateUrl(base, 'Movies', options.mediaFixture), {
+      method: 'POST',
+      headers: { 'X-Emby-Token': auth.AccessToken },
+      body: {
+        LibraryOptions: libraryOptionsForFixture(options.mediaFixture),
       },
-    )
+    })
     await fetchJson(`${base}/Library/Refresh`, {
       method: 'POST',
       headers: { 'X-Emby-Token': auth.AccessToken },
     })
-    const folders = await fetchJson<Array<{ Name?: string }>>(
+    const folders = await fetchJson<Array<{ Name?: string; Locations?: string[] }>>(
       `${base}/Library/VirtualFolders`,
       { headers: { 'X-Emby-Token': auth.AccessToken } },
     )
-    if (!Array.isArray(folders) || !folders.some((folder) => folder.Name === 'Movies')) {
-      throw new Error('Jellyfin Movies library was not created')
+    const movies = Array.isArray(folders) ? folders.find((folder) => folder.Name === 'Movies') : undefined
+    if (!movies?.Locations?.includes(options.mediaFixture)) {
+      throw new Error(
+        `Jellyfin Movies library path missing: ${(movies?.Locations ?? []).join(',') || 'none'}`,
+      )
     }
 
     await waitForItems(base, auth.AccessToken, auth.User.Id)
@@ -226,6 +226,16 @@ export function libraryOptionsForFixture(mediaPath: string) {
     SaveLocalMetadata: false,
     EnableRealtimeMonitor: false,
   }
+}
+
+export function virtualFolderCreateUrl(baseUrl: string, name: string, mediaPath: string): string {
+  const params = new URLSearchParams({
+    name,
+    collectionType: 'movies',
+    refreshLibrary: 'true',
+    paths: mediaPath,
+  })
+  return `${baseUrl}/Library/VirtualFolders?${params.toString()}`
 }
 
 type FetchJsonInit = {
