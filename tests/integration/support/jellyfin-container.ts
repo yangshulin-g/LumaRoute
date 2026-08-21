@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { mkdir, readFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers'
@@ -30,6 +30,8 @@ export async function ensureControlledMediaFixture(): Promise<void> {
   if (bytes.byteLength < 1000 || boxes.some((box) => !bytes.includes(Buffer.from(box)))) {
     throw new Error('controlled media fixture must be a scannable MP4 with ftyp, moov, and mdat')
   }
+  await chmod(samplePath, 0o644)
+  await chmod(FIXTURE_DIR, 0o755)
 }
 
 type WizardOptions = {
@@ -188,17 +190,23 @@ export async function isContainerRuntimeAvailable(): Promise<boolean> {
 export async function startJellyfinContainer(): Promise<JellyfinHarness> {
   await ensureControlledMediaFixture()
   const image = await resolveJellyfinImage()
+  const mediaPath = controlledPublicSample()
   const container = await new GenericContainer(image)
     .withExposedPorts(8096)
-    .withCopyDirectoriesToContainer([
+    .withBindMounts([
       {
         source: controlledFixtureDirectory(),
-        target: controlledPublicSample(),
+        target: mediaPath,
+        mode: 'ro',
       },
     ])
     .withWaitStrategy(Wait.forHttp('/System/Info/Public', 8096).forStatusCode(200))
     .withStartupTimeout(180_000)
     .start()
+  const listing = await container.exec(['ls', '-la', mediaPath])
+  if (listing.exitCode !== 0 || !listing.output.includes('sample.mp4')) {
+    throw new Error(`Jellyfin media fixture missing at ${mediaPath}`)
+  }
   return new JellyfinHarness(container)
 }
 
@@ -207,7 +215,7 @@ export function createJellyfinAdapter(): JellyfinAdapter {
 }
 
 export function controlledPublicSample(): string {
-  return '/data/lumaroute-media'
+  return '/media'
 }
 
 export function libraryOptionsForFixture(mediaPath: string) {
@@ -356,12 +364,19 @@ async function waitForItems(base: string, token: string, userId: string): Promis
       { headers: { 'X-Emby-Token': token } },
     )
     if ((movies.Items?.length ?? 0) > 0 || movies.TotalRecordCount > 0) return
-    const all = await fetchJson<{ Items: { Type?: string }[]; TotalRecordCount: number }>(
+    const all = await fetchJson<{ Items: { Id?: string; Type?: string }[]; TotalRecordCount: number }>(
       `${base}/Users/${userId}/Items?Recursive=true&Limit=50`,
       { headers: { 'X-Emby-Token': token } },
     )
     const types = (all.Items ?? []).map((item) => item.Type ?? 'unknown').join(',') || 'none'
     lastOverview = `count=${all.TotalRecordCount ?? 0} types=${types}`
+    const folder = all.Items?.find((item) => item.Type === 'Folder' || item.Type === 'CollectionFolder')
+    if (folder?.Id) {
+      await fetchJson(
+        `${base}/Items/${folder.Id}/Refresh?Recursive=true&MetadataRefreshMode=ValidationOnly&ImageRefreshMode=None`,
+        { method: 'POST', headers: { 'X-Emby-Token': token } },
+      )
+    }
     await new Promise((resolve) => setTimeout(resolve, 2_000))
   }
   throw new Error(`Timed out waiting for Jellyfin library items (${lastOverview})`)

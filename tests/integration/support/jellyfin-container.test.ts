@@ -63,9 +63,9 @@ describe('Jellyfin harness helpers', () => {
   })
 
   it('adds the fixture library without internet metadata providers', () => {
-    expect(controlledPublicSample()).toBe('/data/lumaroute-media')
+    expect(controlledPublicSample()).toBe('/media')
     expect(libraryOptionsForFixture(controlledPublicSample())).toMatchObject({
-      PathInfos: [{ Path: '/data/lumaroute-media' }],
+      PathInfos: [{ Path: '/media' }],
       EnablePhotos: false,
       EnableInternetProviders: false,
       SaveLocalMetadata: false,
