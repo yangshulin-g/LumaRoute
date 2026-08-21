@@ -43,14 +43,20 @@ it('pins Jellyfin to the reviewed immutable manifest digest', () => {
 it('fails closed when CI requires a container runtime', () => {
   if (dockerAvailable) return
   vi.stubEnv('LUMAROUTE_REQUIRE_CONTAINER', '1')
-  expect(() => requireContainerRuntime(false)).toThrow(/container runtime is required/i)
-  vi.unstubAllEnvs()
+  try {
+    expect(() => requireContainerRuntime(false)).toThrow(/container runtime is required/i)
+  } finally {
+    vi.unstubAllEnvs()
+  }
 })
 
 it('rejects a mutable tag override for LUMAROUTE_JELLYFIN_IMAGE', async () => {
   vi.stubEnv('LUMAROUTE_JELLYFIN_IMAGE', 'jellyfin/jellyfin:10.10.7')
-  await expect(resolveJellyfinImage()).rejects.toThrow(/immutable sha256 digest/i)
-  vi.unstubAllEnvs()
+  try {
+    await expect(resolveJellyfinImage()).rejects.toThrow(/immutable sha256 digest/i)
+  } finally {
+    vi.unstubAllEnvs()
+  }
 })
 
 const containerReady = requireContainerRuntime(dockerAvailable)
@@ -80,10 +86,9 @@ describe.skipIf(!containerReady)('live Jellyfin contract', () => {
     expect(items.items).not.toHaveLength(0)
     const itemId = items.items[0]!.id
     expect((await adapter.search(searchQuery, context)).items).not.toHaveLength(0)
-    await expect(adapter.getPlaybackPlan(itemId, context)).resolves.toMatchObject({
-      itemId,
-      method: expect.stringMatching(/^direct-(play|stream)$/),
-    })
+    const playbackPlan = await adapter.getPlaybackPlan(itemId, context)
+    expect(playbackPlan.itemId).toBe(itemId)
+    expect(playbackPlan.method).toMatch(/^direct-(play|stream)$/)
     await expect(adapter.reportPlayback({ ...startedReport, itemId }, context)).resolves.toBeUndefined()
     await expect(adapter.reportPlayback({ ...stoppedReport, itemId }, context)).resolves.toBeUndefined()
   })

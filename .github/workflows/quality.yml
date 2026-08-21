@@ -51,7 +51,7 @@ jobs:
             patchelf
       - run: pnpm install --frozen-lockfile
       - name: Fetch verified mpv sidecar for Rust/Tauri build
-        run: node scripts/fetch-mpv.mjs --target "$RUST_TARGET"
+        run: node scripts/fetch-mpv.mjs --target "${{ env.RUST_TARGET }}"
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
