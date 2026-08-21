@@ -27,8 +27,14 @@ export async function ensureControlledMediaFixture(): Promise<void> {
   const samplePath = path.join(FIXTURE_DIR, 'sample.mp4')
   const bytes = await readFile(samplePath)
   const boxes = ['ftyp', 'moov', 'mdat']
-  if (bytes.byteLength < 1000 || boxes.some((box) => !bytes.includes(Buffer.from(box)))) {
-    throw new Error('controlled media fixture must be a scannable MP4 with ftyp, moov, and mdat')
+  if (
+    bytes.byteLength < 1000 ||
+    boxes.some((box) => !bytes.includes(Buffer.from(box))) ||
+    !bytes.includes(Buffer.from('mp4a'))
+  ) {
+    throw new Error(
+      'controlled media fixture must be a scannable MP4 with ftyp, moov, mdat, and AAC audio',
+    )
   }
   await chmod(samplePath, 0o644)
   await chmod(FIXTURE_DIR, 0o755)
@@ -370,7 +376,7 @@ async function waitForItems(base: string, token: string, userId: string): Promis
   const deadline = Date.now() + 120_000
   let lastOverview = 'none'
   while (Date.now() < deadline) {
-    const movies = await fetchJson<{ Items: { Type?: string }[]; TotalRecordCount: number }>(
+    const movies = await fetchJson<{ Items: { Id?: string; Type?: string }[]; TotalRecordCount: number }>(
       `${base}/Users/${userId}/Items?Recursive=true&IncludeItemTypes=Movie,Video&Limit=20`,
       { headers: { 'X-Emby-Token': token } },
     )
@@ -379,17 +385,24 @@ async function waitForItems(base: string, token: string, userId: string): Promis
       `${base}/Users/${userId}/Items?Recursive=true&Limit=50`,
       { headers: { 'X-Emby-Token': token } },
     )
-    if ((all.Items ?? []).some((item) => item.Type && item.Type !== 'Folder' && item.Type !== 'CollectionFolder')) {
-      return
-    }
-    const types = (all.Items ?? []).map((item) => item.Type ?? 'unknown').join(',') || 'none'
-    lastOverview = `count=${all.TotalRecordCount ?? 0} types=${types}`
     const folder = all.Items?.find((item) => item.Type === 'Folder' || item.Type === 'CollectionFolder')
     if (folder?.Id) {
+      const children = await fetchJson<{ Items: { Type?: string }[]; TotalRecordCount: number }>(
+        `${base}/Users/${userId}/Items?ParentId=${encodeURIComponent(folder.Id)}&Recursive=true&Limit=50`,
+        { headers: { 'X-Emby-Token': token } },
+      )
+      const childTypes = (children.Items ?? []).map((item) => item.Type ?? 'unknown')
+      lastOverview = `count=${all.TotalRecordCount ?? 0} types=${(all.Items ?? [])
+        .map((item) => item.Type ?? 'unknown')
+        .join(',') || 'none'} children=${children.TotalRecordCount ?? 0} childTypes=${childTypes.join(',') || 'none'}`
+      if (childTypes.some((type) => type !== 'Folder' && type !== 'CollectionFolder')) return
       await fetchJson(
         `${base}/Items/${folder.Id}/Refresh?Recursive=true&MetadataRefreshMode=ValidationOnly&ImageRefreshMode=None`,
         { method: 'POST', headers: { 'X-Emby-Token': token } },
       )
+    } else {
+      const types = (all.Items ?? []).map((item) => item.Type ?? 'unknown').join(',') || 'none'
+      lastOverview = `count=${all.TotalRecordCount ?? 0} types=${types}`
     }
     await new Promise((resolve) => setTimeout(resolve, 2_000))
   }

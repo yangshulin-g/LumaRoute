@@ -81,8 +81,9 @@ describe.skipIf(!containerReady)('live Jellyfin contract', () => {
   it('authenticates, browses, searches, plans playback, and reports progress', async () => {
     const session = await adapter.authenticate(jellyfin.loginInput())
     const context = jellyfin.context(session)
-    expect(await adapter.getLibraries(context)).toHaveLength(1)
-    const items = await adapter.getItems(firstPage, context)
+    const libraries = await adapter.getLibraries(context)
+    expect(libraries).toHaveLength(1)
+    const items = await adapter.getItems({ ...firstPage, libraryId: libraries[0]!.id }, context)
     expect(items.items).not.toHaveLength(0)
     const itemId = items.items[0]!.id
     expect((await adapter.search(searchQuery, context)).items).not.toHaveLength(0)

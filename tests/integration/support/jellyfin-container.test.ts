@@ -61,6 +61,7 @@ describe('Jellyfin harness helpers', () => {
       expect(bytes.includes(Buffer.from(box)), box).toBe(true)
     }
     expect(bytes.byteLength).toBeGreaterThan(1000)
+    expect(bytes.includes(Buffer.from('mp4a')), 'aac audio track').toBe(true)
   })
 
   it('adds the fixture library without internet metadata providers', () => {
