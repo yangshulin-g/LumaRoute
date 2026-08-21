@@ -64,16 +64,19 @@ describe('Jellyfin harness helpers', () => {
   })
 
   it('adds the fixture library without internet metadata providers', () => {
-    expect(controlledPublicSample()).toBe('/media')
+    expect(controlledPublicSample()).toBe('/data/lumaroute-media')
     expect(libraryOptionsForFixture(controlledPublicSample())).toMatchObject({
-      PathInfos: [{ Path: '/media' }],
+      PathInfos: [{ Path: '/data/lumaroute-media' }],
       EnablePhotos: false,
       EnableInternetProviders: false,
       SaveLocalMetadata: false,
       EnableRealtimeMonitor: false,
     })
-    expect(virtualFolderCreateUrl('http://127.0.0.1:8096', 'Movies', '/media')).toContain(
-      'paths=%2Fmedia',
+    expect(virtualFolderCreateUrl('http://127.0.0.1:8096', 'Movies', '/data/lumaroute-media')).toContain(
+      'paths=%2Fdata%2Flumaroute-media',
+    )
+    expect(virtualFolderCreateUrl('http://127.0.0.1:8096', 'Movies', '/data/lumaroute-media')).not.toContain(
+      'collectionType',
     )
   })
 

@@ -193,16 +193,18 @@ export async function startJellyfinContainer(): Promise<JellyfinHarness> {
   const mediaPath = controlledPublicSample()
   const container = await new GenericContainer(image)
     .withExposedPorts(8096)
-    .withBindMounts([
-      {
-        source: controlledFixtureDirectory(),
-        target: mediaPath,
-        mode: 'ro',
-      },
-    ])
     .withWaitStrategy(Wait.forHttp('/System/Info/Public', 8096).forStatusCode(200))
     .withStartupTimeout(180_000)
     .start()
+  await container.copyFilesToContainer([
+    {
+      source: path.join(controlledFixtureDirectory(), 'sample.mp4'),
+      target: `${mediaPath}/sample.mp4`,
+      mode: parseInt('0644', 8),
+    },
+  ])
+  await container.exec(['chmod', '-R', 'a+rX', mediaPath])
+  await container.exec(['chown', '-R', '1000:1000', mediaPath])
   const listing = await container.exec(['ls', '-la', mediaPath])
   if (listing.exitCode !== 0 || !listing.output.includes('sample.mp4')) {
     throw new Error(`Jellyfin media fixture missing at ${mediaPath}`)
@@ -215,7 +217,7 @@ export function createJellyfinAdapter(): JellyfinAdapter {
 }
 
 export function controlledPublicSample(): string {
-  return '/media'
+  return '/data/lumaroute-media'
 }
 
 export function libraryOptionsForFixture(mediaPath: string) {
@@ -231,7 +233,6 @@ export function libraryOptionsForFixture(mediaPath: string) {
 export function virtualFolderCreateUrl(baseUrl: string, name: string, mediaPath: string): string {
   const params = new URLSearchParams({
     name,
-    collectionType: 'movies',
     refreshLibrary: 'true',
     paths: mediaPath,
   })
@@ -378,6 +379,9 @@ async function waitForItems(base: string, token: string, userId: string): Promis
       `${base}/Users/${userId}/Items?Recursive=true&Limit=50`,
       { headers: { 'X-Emby-Token': token } },
     )
+    if ((all.Items ?? []).some((item) => item.Type && item.Type !== 'Folder' && item.Type !== 'CollectionFolder')) {
+      return
+    }
     const types = (all.Items ?? []).map((item) => item.Type ?? 'unknown').join(',') || 'none'
     lastOverview = `count=${all.TotalRecordCount ?? 0} types=${types}`
     const folder = all.Items?.find((item) => item.Type === 'Folder' || item.Type === 'CollectionFolder')
