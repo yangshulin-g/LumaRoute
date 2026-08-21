@@ -4,8 +4,10 @@ import path from 'node:path'
 import {
   configureStartupUser,
   controlledFixtureDirectory,
+  controlledPublicSample,
   ensureControlledMediaFixture,
   fetchJsonWithRetry,
+  libraryOptionsForFixture,
   probeContainerRuntime,
   randomPassword,
 } from './jellyfin-container'
@@ -28,6 +30,7 @@ describe('Jellyfin harness helpers', () => {
   it('retries a transient docker probe failure then reports available', async () => {
     const calls = { count: 0 }
     const available = await probeContainerRuntime({
+      platform: 'linux',
       delayMs: 0,
       probe: async () => {
         calls.count += 1
@@ -57,6 +60,17 @@ describe('Jellyfin harness helpers', () => {
       expect(bytes.includes(Buffer.from(box)), box).toBe(true)
     }
     expect(bytes.byteLength).toBeGreaterThan(1000)
+  })
+
+  it('adds the fixture library without internet metadata providers', () => {
+    expect(controlledPublicSample()).toBe('/data/lumaroute-media')
+    expect(libraryOptionsForFixture(controlledPublicSample())).toMatchObject({
+      PathInfos: [{ Path: '/data/lumaroute-media' }],
+      EnablePhotos: false,
+      EnableInternetProviders: false,
+      SaveLocalMetadata: false,
+      EnableRealtimeMonitor: false,
+    })
   })
 
   it('retries a transient 500 from the startup wizard then succeeds', async () => {

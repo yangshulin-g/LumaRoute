@@ -109,10 +109,7 @@ export class JellyfinHarness {
         method: 'POST',
         headers: { 'X-Emby-Token': auth.AccessToken },
         body: {
-          LibraryOptions: {
-            PathInfos: [{ Path: options.mediaFixture }],
-            EnablePhotos: false,
-          },
+          LibraryOptions: libraryOptionsForFixture(options.mediaFixture),
         },
       },
     )
@@ -120,6 +117,13 @@ export class JellyfinHarness {
       method: 'POST',
       headers: { 'X-Emby-Token': auth.AccessToken },
     })
+    const folders = await fetchJson<Array<{ Name?: string }>>(
+      `${base}/Library/VirtualFolders`,
+      { headers: { 'X-Emby-Token': auth.AccessToken } },
+    )
+    if (!Array.isArray(folders) || !folders.some((folder) => folder.Name === 'Movies')) {
+      throw new Error('Jellyfin Movies library was not created')
+    }
 
     await waitForItems(base, auth.AccessToken, auth.User.Id)
   }
@@ -189,7 +193,7 @@ export async function startJellyfinContainer(): Promise<JellyfinHarness> {
     .withCopyDirectoriesToContainer([
       {
         source: controlledFixtureDirectory(),
-        target: '/media',
+        target: controlledPublicSample(),
       },
     ])
     .withWaitStrategy(Wait.forHttp('/System/Info/Public', 8096).forStatusCode(200))
@@ -203,7 +207,17 @@ export function createJellyfinAdapter(): JellyfinAdapter {
 }
 
 export function controlledPublicSample(): string {
-  return '/media'
+  return '/data/lumaroute-media'
+}
+
+export function libraryOptionsForFixture(mediaPath: string) {
+  return {
+    PathInfos: [{ Path: mediaPath }],
+    EnablePhotos: false,
+    EnableInternetProviders: false,
+    SaveLocalMetadata: false,
+    EnableRealtimeMonitor: false,
+  }
 }
 
 type FetchJsonInit = {
@@ -335,15 +349,22 @@ async function setUserPassword(
 
 async function waitForItems(base: string, token: string, userId: string): Promise<void> {
   const deadline = Date.now() + 120_000
+  let lastOverview = 'none'
   while (Date.now() < deadline) {
-    const result = await fetchJson<{ Items: unknown[]; TotalRecordCount: number }>(
+    const movies = await fetchJson<{ Items: { Type?: string }[]; TotalRecordCount: number }>(
       `${base}/Users/${userId}/Items?Recursive=true&IncludeItemTypes=Movie,Video&Limit=20`,
       { headers: { 'X-Emby-Token': token } },
     )
-    if ((result.Items?.length ?? 0) > 0 || result.TotalRecordCount > 0) return
+    if ((movies.Items?.length ?? 0) > 0 || movies.TotalRecordCount > 0) return
+    const all = await fetchJson<{ Items: { Type?: string }[]; TotalRecordCount: number }>(
+      `${base}/Users/${userId}/Items?Recursive=true&Limit=50`,
+      { headers: { 'X-Emby-Token': token } },
+    )
+    const types = (all.Items ?? []).map((item) => item.Type ?? 'unknown').join(',') || 'none'
+    lastOverview = `count=${all.TotalRecordCount ?? 0} types=${types}`
     await new Promise((resolve) => setTimeout(resolve, 2_000))
   }
-  throw new Error('Timed out waiting for Jellyfin library items')
+  throw new Error(`Timed out waiting for Jellyfin library items (${lastOverview})`)
 }
 
 function redactSecrets(value: string): string {
