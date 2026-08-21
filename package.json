@@ -22,7 +22,7 @@
     "fetch:mpv": "node scripts/fetch-mpv.mjs",
     "package:checksums": "node scripts/package-checksums.mjs apps/desktop/src-tauri/target",
     "smoke:packaged": "node scripts/smoke-packaged.mjs --current-platform",
-    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:rust && pnpm check:boundaries && node scripts/check-sensitive-output.mjs tests/fixtures/security/diagnostics.json tests/fixtures/security/app.log && pnpm check:mpv"
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:rust && pnpm check:boundaries && node scripts/check-sensitive-output.mjs tests/fixtures/security/diagnostics.json tests/fixtures/security/app.log.txt && pnpm check:mpv"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
