@@ -3,7 +3,7 @@ import type { PlaybackPlan } from '@lumaroute/player'
 import { AppError } from '../errors/app-error'
 import type { ServerLine, ServerProfile } from '../server/types'
 import { RouteExecutor } from '../server/route-executor'
-import { PlaybackService } from './playback-service'
+import { PlaybackService, isPreStartNetworkFailure } from './playback-service'
 
 const profile: ServerProfile = {
   id: 'profile-1',
@@ -50,6 +50,19 @@ function planFor(line: ServerLine): PlaybackPlan {
 }
 
 describe('PlaybackService', () => {
+  it.each([
+    [{ code: 'PlaybackFailed', message: 'connection timed out before file-loaded' }, true],
+    [{ code: 'PlaybackFailed', message: 'HTTP 503 while loading' }, true],
+    [{ code: 'PlaybackFailed', message: 'HTTP 401 while loading' }, false],
+    [{ code: 'PlaybackFailed', message: 'HTTP 403 while loading' }, false],
+    [{ code: 'PlaybackFailed', message: 'HTTP 404 while loading' }, false],
+    [{ code: 'PlaybackFailed', message: 'unsupported codec' }, false],
+    [{ code: 'PlayerUnavailable', message: 'packaged mpv sidecar missing' }, false],
+    [{ code: 'MediaNotDirectPlayable', message: 'transcode required' }, false],
+  ])('classifies pre-start native rejection %j as %s', (error, retryable) => {
+    expect(isPreStartNetworkFailure(error)).toBe(retryable)
+  })
+
   it('regenerates the plan on the backup line when mpv cannot load the primary', async () => {
     const adapter = {
       getPlaybackPlan: vi.fn(async (_itemId: string, context: { line: ServerLine }) =>

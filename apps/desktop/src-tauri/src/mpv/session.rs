@@ -5,9 +5,7 @@ use tokio::sync::mpsc;
 
 use crate::error::NativeError;
 use crate::mpv::ipc::{self, IpcEndpoint, IpcReader, IpcWriter};
-use crate::mpv::process::{
-    format_mpv_early_exit, format_mpv_socket_timeout, spawn_mpv,
-};
+use crate::mpv::process::{format_mpv_early_exit, format_mpv_socket_timeout, spawn_mpv};
 use crate::mpv::protocol::{
     control_command, map_mpv_event_with_state, observe_commands, play_commands, ControlAction,
     MpvCommand, NativePlaybackPlan, NativePlayerEvent,
@@ -189,7 +187,7 @@ impl MpvSession {
         loop {
             let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
             if remaining.is_zero() {
-                return Err(NativeError::player_unavailable(
+                return Err(NativeError::playback_failed(
                     "timed out waiting for mpv file-loaded",
                 ));
             }
@@ -200,20 +198,18 @@ impl MpvSession {
                         return Ok(());
                     }
                     NativePlayerEvent::Error { message, .. } => {
-                        return Err(NativeError::player_unavailable(message));
+                        return Err(NativeError::playback_failed(message));
                     }
                     NativePlayerEvent::Ended { .. } | NativePlayerEvent::Stopped { .. } => {
-                        return Err(NativeError::player_unavailable(
+                        return Err(NativeError::playback_failed(
                             "mpv ended before playback started",
                         ));
                     }
                     _ => {}
                 },
-                Ok(None) => {
-                    return Err(NativeError::player_unavailable("mpv event channel closed"))
-                }
+                Ok(None) => return Err(NativeError::playback_failed("mpv event channel closed")),
                 Err(_) => {
-                    return Err(NativeError::player_unavailable(
+                    return Err(NativeError::playback_failed(
                         "timed out waiting for mpv file-loaded",
                     ))
                 }

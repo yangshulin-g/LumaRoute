@@ -42,6 +42,68 @@ impl TestHarness {
         Self { session }
     }
 
+    async fn start_rejecting_load(message: &str) -> Self {
+        let runtime_dir = tempfile_runtime_dir();
+        let script = runtime_dir.join("fake-mpv.mjs");
+        let reject = serde_json::to_string(message).expect("serialize reject message");
+        std::fs::write(
+            &script,
+            format!(
+                r#"#!/usr/bin/env node
+import fs from 'node:fs'
+import net from 'node:net'
+
+const REJECT = {reject}
+const endpoint = process.argv
+  .find((arg) => arg.startsWith('--input-ipc-server='))
+  ?.split('=')[1]
+
+if (!endpoint) {{
+  process.stderr.write('missing --input-ipc-server\n')
+  process.exit(2)
+}}
+
+function attachSocket(socket) {{
+  socket.setEncoding('utf8')
+  let buffer = ''
+  socket.on('data', (chunk) => {{
+    buffer += chunk
+    for (;;) {{
+      const newline = buffer.indexOf('\n')
+      if (newline < 0) break
+      const raw = buffer.slice(0, newline)
+      buffer = buffer.slice(newline + 1)
+      if (!raw.trim()) continue
+      const request = JSON.parse(raw)
+      const command = request.command?.[0]
+      if (command === 'loadfile') {{
+        socket.write(`${{JSON.stringify({{ request_id: request.request_id, error: REJECT }})}}\n`)
+        continue
+      }}
+      socket.write(`${{JSON.stringify({{ request_id: request.request_id, error: 'success' }})}}\n`)
+    }}
+  }})
+}}
+
+const isPipe = endpoint.startsWith('\\\\.\\pipe\\') || endpoint.startsWith('//./pipe/')
+if (!isPipe) {{
+  try {{ fs.unlinkSync(endpoint) }} catch {{}}
+}}
+const server = net.createServer(attachSocket)
+server.listen(endpoint)
+process.on('SIGTERM', () => server.close(() => process.exit(0)))
+process.on('SIGINT', () => server.close(() => process.exit(0)))
+"#,
+                reject = reject
+            ),
+        )
+        .expect("write rejecting fake-mpv");
+        let session = MpvSession::start_with_executable(&runtime_dir, &script)
+            .await
+            .expect("start rejecting mpv session");
+        Self { session }
+    }
+
     fn endpoint(&self) -> &str {
         self.session.endpoint_display()
     }
@@ -50,7 +112,10 @@ impl TestHarness {
         self.session.endpoint_is_current_user_only().await
     }
 
-    async fn play(&mut self, plan: NativePlaybackPlan) -> Result<(), lumaroute_lib::error::NativeError> {
+    async fn play(
+        &mut self,
+        plan: NativePlaybackPlan,
+    ) -> Result<(), lumaroute_lib::error::NativeError> {
         self.session.play(plan).await
     }
 
@@ -156,6 +221,14 @@ async fn creates_unique_private_ipc_and_cleans_it_after_stop() {
     first.stop().await.expect("stop session");
     assert!(!endpoint_exists(&endpoint).await);
     second.stop().await.expect("stop second");
+}
+
+#[tokio::test]
+async fn classifies_pre_start_load_rejection_as_playback_failed() {
+    let mut harness = TestHarness::start_rejecting_load("network timeout").await;
+    let error = harness.play(test_plan()).await.unwrap_err();
+    assert_eq!(error.code(), "PlaybackFailed");
+    assert!(error.message().contains("network timeout"));
 }
 
 #[tokio::test]

@@ -10,6 +10,8 @@ pub enum NativeError {
     StorageFailure(String),
     #[error("{0}")]
     PlayerUnavailable(String),
+    #[error("{0}")]
+    PlaybackFailed(String),
 }
 
 impl NativeError {
@@ -25,11 +27,16 @@ impl NativeError {
         Self::PlayerUnavailable(sanitize_message(message.into()))
     }
 
+    pub fn playback_failed(message: impl Into<String>) -> Self {
+        Self::PlaybackFailed(sanitize_message(message.into()))
+    }
+
     pub fn code(&self) -> &'static str {
         match self {
             Self::InvalidInput(_) => "InvalidInput",
             Self::StorageFailure(_) => "StorageFailure",
             Self::PlayerUnavailable(_) => "PlayerUnavailable",
+            Self::PlaybackFailed(_) => "PlaybackFailed",
         }
     }
 
@@ -37,7 +44,8 @@ impl NativeError {
         match self {
             Self::InvalidInput(message)
             | Self::StorageFailure(message)
-            | Self::PlayerUnavailable(message) => message,
+            | Self::PlayerUnavailable(message)
+            | Self::PlaybackFailed(message) => message,
         }
     }
 }
@@ -205,6 +213,14 @@ mod tests {
         assert!(json.contains("[PATH]"));
         assert!(json.contains("[REDACTED]"));
         assert!(json.contains("\"code\":\"PlayerUnavailable\""));
+    }
+
+    #[test]
+    fn serializes_playback_failed_with_stable_code() {
+        let error = NativeError::playback_failed("network timeout while loading");
+        let value = serde_json::to_value(&error).unwrap();
+        assert_eq!(value["code"], "PlaybackFailed");
+        assert_eq!(value["message"], "network timeout while loading");
     }
 
     #[test]

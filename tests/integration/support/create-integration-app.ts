@@ -2,14 +2,47 @@ import {
   JellyfinAdapter,
   LineService,
   MediaService,
+  PlaybackService,
   RouteExecutor,
   type ServerLine,
   type ServerProfile,
 } from '@lumaroute/core'
+import type { PlaybackPlan, PlayerEngine, PlayerEvent, Unsubscribe } from '@lumaroute/player'
 import { MemoryCredentialStore, MemoryStorage, NodeHttpTransport } from './memory-ports'
+
+export class RecordingPlayerEngine implements PlayerEngine {
+  readonly plans: PlaybackPlan[] = []
+  private nextError: unknown
+
+  failNext(error: unknown): void {
+    this.nextError = error
+  }
+
+  async play(plan: PlaybackPlan): Promise<void> {
+    this.plans.push(structuredClone(plan))
+    if (this.nextError !== undefined) {
+      const error = this.nextError
+      this.nextError = undefined
+      throw error
+    }
+  }
+
+  async pause(): Promise<void> {}
+  async resume(): Promise<void> {}
+  async seek(positionSeconds: number): Promise<void> {
+    void positionSeconds
+  }
+  async stop(): Promise<void> {}
+  subscribe(listener: (event: PlayerEvent) => void): Unsubscribe {
+    void listener
+    return () => undefined
+  }
+}
 
 export type IntegrationApp = {
   media: MediaService
+  playback: PlaybackService
+  player: RecordingPlayerEngine
   lines: LineService
   routes: RouteExecutor
   storage: MemoryStorage
@@ -49,10 +82,12 @@ export async function createIntegrationApp(options: {
   const adapter = new JellyfinAdapter(http)
   const routes = new RouteExecutor()
   const media = new MediaService(storage, credentials, routes, () => adapter)
+  const player = new RecordingPlayerEngine()
+  const playback = new PlaybackService(storage, credentials, routes, () => adapter, player)
   const lines = new LineService(storage, credentials, {
     getServerIdentity: (_kind, baseUrl, accessToken, signal) =>
       adapter.getServerIdentity(baseUrl, accessToken, signal),
   })
 
-  return { media, lines, routes, storage, credentials }
+  return { media, playback, player, lines, routes, storage, credentials }
 }

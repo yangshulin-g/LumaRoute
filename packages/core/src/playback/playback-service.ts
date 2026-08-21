@@ -13,19 +13,31 @@ function httpStatus(error: unknown): number | undefined {
   return undefined
 }
 
+type StableError = { code?: unknown; message?: unknown; status?: unknown; cause?: unknown }
+
+function stableError(error: unknown): StableError | null {
+  return typeof error === 'object' && error !== null ? error as StableError : null
+}
+
 export function isPreStartNetworkFailure(error: unknown): boolean {
-  if (error instanceof AppError) {
-    if (error.code === 'NetworkUnavailable' || error.code === 'LineTimeout') return true
-    if (error.code === 'PlayerUnavailable') return false
-    if (error.code === 'AuthenticationExpired') return false
-    if (error.code === 'MediaNotDirectPlayable') return false
-    if (error.code === 'PlaybackFailed') {
-      const message = error.message.toLowerCase()
-      if (/(codec|unsupported|format|decode)/.test(message)) return false
-      return /(timeout|timed out|connection|dns|network|502|503|504)/.test(message)
-    }
-  }
+  const current = stableError(error)
+  const code = error instanceof AppError ? error.code : current?.code
+  const message = String(error instanceof Error ? error.message : current?.message ?? '').toLowerCase()
   const status = httpStatus(error)
+
+  if (code === 'NetworkUnavailable' || code === 'LineTimeout') return true
+  if (
+    code === 'PlayerUnavailable'
+    || code === 'AuthenticationExpired'
+    || code === 'MediaNotDirectPlayable'
+  ) return false
+  if (status === 401 || status === 403 || (status !== undefined && status >= 400 && status < 500)) {
+    return false
+  }
+  if (code === 'PlaybackFailed') {
+    if (/(401|403|4\d\d|codec|unsupported|format|decode|transcod)/.test(message)) return false
+    return /(timeout|timed out|connection|dns|network|502|503|504)/.test(message)
+  }
   return status === 502 || status === 503 || status === 504
 }
 
