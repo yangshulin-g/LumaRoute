@@ -32,6 +32,7 @@ async function withFakeIpc(onRequest, run, listenPath) {
       : join(dir, 'mpv.sock'))
   const server = createServer((socket) => {
     socket.setEncoding('utf8')
+    socket.on('error', () => {})
     let buffer = ''
     socket.on('data', (chunk) => {
       buffer += chunk
@@ -56,8 +57,17 @@ async function withFakeIpc(onRequest, run, listenPath) {
   }
 }
 
+function writeFakeIpc(socket, message) {
+  if (socket.writable === false) return
+  try {
+    socket.write(`${JSON.stringify(message)}\n`)
+  } catch (error) {
+    if (!/EPIPE|ECONNRESET/i.test(String(error?.code ?? error?.message ?? error))) throw error
+  }
+}
+
 function replySuccess(socket, request, extra = {}) {
-  socket.write(`${JSON.stringify({ request_id: request.request_id, error: 'success', ...extra })}\n`)
+  writeFakeIpc(socket, { request_id: request.request_id, error: 'success', ...extra })
 }
 
 function fixtureManifest() {
@@ -166,10 +176,23 @@ describe('installed qualification', () => {
   })
 })
 
-describe('JSON IPC command execution', () => {
+describe('JSON IPC command execution', { concurrency: 1 }, () => {
+  it('does not throw when a fake IPC write hits a closed peer', () => {
+    const socket = {
+      write() {
+        const error = new Error('write EPIPE')
+        error.code = 'EPIPE'
+        throw error
+      },
+    }
+    assert.doesNotThrow(() => {
+      replySuccess(socket, { request_id: 1 })
+    })
+  })
+
   it('does not treat an uncorrelated JSON line as command success', async () => {
     await withFakeIpc((socket) => {
-      socket.write(`${JSON.stringify({ event: 'unrelated' })}\n`)
+      writeFakeIpc(socket, { event: 'unrelated' })
     }, async (socketPath) => {
       const session = await openIpc(socketPath, { timeoutMs: IPC_TEST_TIMEOUT_MS })
       try {
@@ -185,9 +208,7 @@ describe('JSON IPC command execution', () => {
 
   it('rejects a command reply whose error is not success', async () => {
     await withFakeIpc((socket, request) => {
-      socket.write(
-        `${JSON.stringify({ request_id: request.request_id, error: 'invalid parameter' })}\n`,
-      )
+      writeFakeIpc(socket, { request_id: request.request_id, error: 'invalid parameter' })
     }, async (socketPath) => {
       const session = await openIpc(socketPath, { timeoutMs: IPC_TEST_TIMEOUT_MS })
       try {
@@ -203,10 +224,8 @@ describe('JSON IPC command execution', () => {
 
   it('ignores success replies that do not match the request id', async () => {
     await withFakeIpc((socket, request) => {
-      socket.write(
-        `${JSON.stringify({ request_id: Number(request.request_id) + 99, error: 'success' })}\n`,
-      )
-      socket.write(`${JSON.stringify({ event: 'unrelated' })}\n`)
+      writeFakeIpc(socket, { request_id: Number(request.request_id) + 99, error: 'success' })
+      writeFakeIpc(socket, { event: 'unrelated' })
     }, async (socketPath) => {
       const session = await openIpc(socketPath, { timeoutMs: IPC_TEST_TIMEOUT_MS })
       try {
@@ -240,7 +259,7 @@ describe('JSON IPC command execution', () => {
     await withFakeIpc((socket, request) => {
       replySuccess(socket, request)
       if (request.command?.[0] === 'loadfile') {
-        socket.write(`${JSON.stringify({ event: 'file-loaded' })}\n`)
+        writeFakeIpc(socket, { event: 'file-loaded' })
       }
     }, async (socketPath) => {
       const session = await openIpc(socketPath, { timeoutMs: IPC_TEST_TIMEOUT_MS })
@@ -256,22 +275,26 @@ describe('JSON IPC command execution', () => {
   })
 
   it('accepts request-correlated success plus observed control events', async () => {
+    let paused = false
     await withFakeIpc((socket, request) => {
       const [command, name, value] = request.command ?? []
-      replySuccess(socket, request, command === 'get_property' && name === 'pause' ? { data: value } : {})
+      if (command === 'set_property' && name === 'pause') paused = value
+      replySuccess(
+        socket,
+        request,
+        command === 'get_property' && name === 'pause' ? { data: paused } : {},
+      )
       if (command === 'loadfile') {
-        socket.write(`${JSON.stringify({ event: 'file-loaded' })}\n`)
+        writeFakeIpc(socket, { event: 'file-loaded' })
       }
       if (command === 'set_property' && name === 'pause') {
-        socket.write(
-          `${JSON.stringify({ event: 'property-change', name: 'pause', data: value })}\n`,
-        )
+        writeFakeIpc(socket, { event: 'property-change', name: 'pause', data: paused })
       }
       if (command === 'seek') {
-        socket.write(`${JSON.stringify({ event: 'seek' })}\n`)
+        writeFakeIpc(socket, { event: 'seek' })
       }
       if (command === 'stop') {
-        socket.write(`${JSON.stringify({ event: 'end-file', reason: 'stop' })}\n`)
+        writeFakeIpc(socket, { event: 'end-file', reason: 'stop' })
       }
     }, async (socketPath) => {
       const session = await openIpc(socketPath, { timeoutMs: IPC_TEST_TIMEOUT_MS })
@@ -287,9 +310,7 @@ describe('JSON IPC command execution', () => {
     const privateUrl = 'https://media.example/private.mkv?token=secret'
     await withFakeIpc((socket, request) => {
       if (request.command?.[0] === 'loadfile') {
-        socket.write(
-          `${JSON.stringify({ request_id: request.request_id, error: 'invalid parameter' })}\n`,
-        )
+        writeFakeIpc(socket, { request_id: request.request_id, error: 'invalid parameter' })
         return
       }
       replySuccess(socket, request)
