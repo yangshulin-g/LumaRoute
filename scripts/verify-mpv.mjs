@@ -465,7 +465,7 @@ export function createIpcEndpoint({
   id,
 } = {}) {
   const windows =
-    platform === 'win32' || (typeof target === 'string' && target.includes('windows'))
+    typeof target === 'string' ? target.includes('windows') : platform === 'win32'
   const token = id ?? randomUUID()
   if (windows) {
     return { kind: 'pipe', path: `\\\\.\\pipe\\lumaroute-mpv-${token}` }

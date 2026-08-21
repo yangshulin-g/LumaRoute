@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchJsonWithRetry, probeContainerRuntime, randomPassword } from './jellyfin-container'
+import {
+  configureStartupUser,
+  fetchJsonWithRetry,
+  probeContainerRuntime,
+  randomPassword,
+} from './jellyfin-container'
 
 describe('Jellyfin harness helpers', () => {
   afterEach(() => {
@@ -50,5 +55,69 @@ describe('Jellyfin harness helpers', () => {
       }),
     ).resolves.toEqual({})
     expect(calls).toBe(2)
+  })
+
+  it('uses the placeholder first-user name when POST /Startup/User returns 500', async () => {
+    const requests: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      async (url: string | URL, init?: RequestInit) => {
+        const href = String(url)
+        requests.push(`${init?.method ?? 'GET'} ${href}`)
+        if (href.endsWith('/Startup/User') && (init?.method ?? 'GET') === 'GET') {
+          return new Response(JSON.stringify({ Name: 'jellyfin' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+        if (href.endsWith('/Startup/User') && init?.method === 'POST') {
+          return new Response('Error processing request.', { status: 500 })
+        }
+        throw new Error(`unexpected ${init?.method} ${href}`)
+      },
+    )
+
+    await expect(
+      configureStartupUser('http://127.0.0.1:8096', {
+        username: 'lumaroute-test',
+        password: 'Lr1-secret',
+      }),
+    ).resolves.toEqual({
+      username: 'jellyfin',
+      password: 'Lr1-secret',
+      passwordSet: false,
+    })
+    expect(requests).toContain('GET http://127.0.0.1:8096/Startup/User')
+    expect(requests).toContain('POST http://127.0.0.1:8096/Startup/User')
+  })
+
+  it('keeps the requested first-user name when POST /Startup/User succeeds', async () => {
+    vi.stubGlobal(
+      'fetch',
+      async (url: string | URL, init?: RequestInit) => {
+        const href = String(url)
+        if (href.endsWith('/Startup/User') && (init?.method ?? 'GET') === 'GET') {
+          return new Response(JSON.stringify({ Name: 'jellyfin' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+        if (href.endsWith('/Startup/User') && init?.method === 'POST') {
+          return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+        }
+        throw new Error(`unexpected ${init?.method} ${href}`)
+      },
+    )
+
+    await expect(
+      configureStartupUser('http://127.0.0.1:8096', {
+        username: 'lumaroute-test',
+        password: 'Lr1-secret',
+      }),
+    ).resolves.toEqual({
+      username: 'lumaroute-test',
+      password: 'Lr1-secret',
+      passwordSet: true,
+    })
   })
 })

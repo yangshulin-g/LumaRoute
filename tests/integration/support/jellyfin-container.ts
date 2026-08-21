@@ -90,27 +90,19 @@ export class JellyfinHarness {
         PreferredMetadataLanguage: 'en',
       },
     })
-    await fetchJsonWithRetry(`${base}/Startup/User`, {
-      method: 'POST',
-      body: { Name: options.username, Password: options.password },
-    })
+    const startupUser = await configureStartupUser(base, options)
+    this.username = startupUser.username
     await fetchJsonWithRetry(`${base}/Startup/RemoteAccess`, {
       method: 'POST',
       body: { EnableRemoteAccess: false, EnableAutomaticPortMapping: false },
     })
     await fetchJsonWithRetry(`${base}/Startup/Complete`, { method: 'POST' })
 
-    const auth = await fetchJson<{ AccessToken: string; User: { Id: string } }>(
-      `${base}/Users/AuthenticateByName`,
-      {
-        method: 'POST',
-        headers: {
-          'X-Emby-Authorization':
-            'MediaBrowser Client="LumaRoute", Device="LumaRoute", DeviceId="lumaroute-integration", Version="0.1.0"',
-        },
-        body: { Username: options.username, Pw: options.password },
-      },
-    )
+    const auth = await authenticateAfterWizard(base, startupUser)
+    if (!startupUser.passwordSet) {
+      await setUserPassword(base, auth, options.password)
+    }
+    this.password = options.password
 
     await fetchJson(
       `${base}/Library/VirtualFolders?name=Movies&collectionType=movies&refreshLibrary=true`,
@@ -259,6 +251,80 @@ export async function fetchJsonWithRetry<T = unknown>(
   init: FetchJsonInit = {},
 ): Promise<T> {
   return fetchJson<T>(url, { attempts: 8, retryDelayMs: 500, ...init })
+}
+
+const EMBY_AUTHORIZATION =
+  'MediaBrowser Client="LumaRoute", Device="LumaRoute", DeviceId="lumaroute-integration", Version="0.1.0"'
+
+type StartupUserConfig = {
+  username: string
+  password: string
+  passwordSet: boolean
+}
+
+export async function configureStartupUser(
+  baseUrl: string,
+  options: { username: string; password: string },
+): Promise<StartupUserConfig> {
+  const current = await fetchJsonWithRetry<{ Name?: string }>(`${baseUrl}/Startup/User`)
+  const placeholder = current.Name?.trim() || 'jellyfin'
+  try {
+    await fetchJsonWithRetry(`${baseUrl}/Startup/User`, {
+      method: 'POST',
+      body: { Name: options.username, Password: options.password },
+      attempts: 1,
+    })
+    return {
+      username: options.username,
+      password: options.password,
+      passwordSet: true,
+    }
+  } catch (error) {
+    if (error instanceof Error && /HTTP 500/.test(error.message)) {
+      return {
+        username: placeholder,
+        password: options.password,
+        passwordSet: false,
+      }
+    }
+    throw error
+  }
+}
+
+async function authenticateByName(
+  baseUrl: string,
+  username: string,
+  password: string,
+): Promise<{ AccessToken: string; User: { Id: string } }> {
+  return fetchJson(`${baseUrl}/Users/AuthenticateByName`, {
+    method: 'POST',
+    headers: { 'X-Emby-Authorization': EMBY_AUTHORIZATION },
+    body: { Username: username, Pw: password },
+  })
+}
+
+async function authenticateAfterWizard(
+  baseUrl: string,
+  startupUser: StartupUserConfig,
+): Promise<{ AccessToken: string; User: { Id: string } }> {
+  try {
+    return await authenticateByName(baseUrl, startupUser.username, startupUser.password)
+  } catch (error) {
+    if (startupUser.passwordSet) throw error
+    return authenticateByName(baseUrl, startupUser.username, '')
+  }
+}
+
+async function setUserPassword(
+  baseUrl: string,
+  auth: { AccessToken: string; User: { Id: string } },
+  password: string,
+): Promise<void> {
+  await fetchJson(`${baseUrl}/Users/${auth.User.Id}/Password`, {
+    method: 'POST',
+    headers: { 'X-Emby-Token': auth.AccessToken },
+    body: { CurrentPw: '', NewPw: password },
+  })
 }
 
 async function waitForItems(base: string, token: string, userId: string): Promise<void> {

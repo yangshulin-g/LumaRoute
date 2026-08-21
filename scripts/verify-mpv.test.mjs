@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { createServer } from 'node:net'
@@ -24,7 +25,11 @@ const IPC_TEST_TIMEOUT_MS = 250
 
 async function withFakeIpc(onRequest, run, listenPath) {
   const dir = mkdtempSync(join(tmpdir(), 'lr-ipc-test-'))
-  const socketPath = listenPath ?? join(dir, 'mpv.sock')
+  const socketPath =
+    listenPath ??
+    (process.platform === 'win32'
+      ? `\\\\.\\pipe\\lumaroute-test-${randomUUID()}`
+      : join(dir, 'mpv.sock'))
   const server = createServer((socket) => {
     socket.setEncoding('utf8')
     let buffer = ''
@@ -326,15 +331,21 @@ describe('JSON IPC endpoint shape', () => {
       { target: 'x86_64-unknown-linux-gnu' },
       { platform: 'darwin' },
       { platform: 'linux' },
+      { target: 'x86_64-unknown-linux-gnu', platform: 'win32' },
+      { target: 'aarch64-apple-darwin', platform: 'win32' },
     ]
     for (const input of cases) {
       const endpoint = createIpcEndpoint({ ...input, runtimeDir })
-      assert.equal(endpoint.kind, 'socket')
+      assert.equal(endpoint.kind, 'socket', JSON.stringify(input))
       assert.equal(endpoint.path, join(runtimeDir, 'mpv.sock'))
     }
   })
 
-  it('openIpc connects using a Unix socket endpoint from createIpcEndpoint', async () => {
+  it('openIpc connects using a Unix socket endpoint from createIpcEndpoint', async (t) => {
+    if (process.platform === 'win32') {
+      t.skip('Windows runners cannot bind AF_UNIX sockets in TEMP')
+      return
+    }
     const dir = mkdtempSync(join(tmpdir(), 'lr-ipc-unix-'))
     const endpoint = createIpcEndpoint({ target: 'x86_64-unknown-linux-gnu', runtimeDir: dir })
     try {
