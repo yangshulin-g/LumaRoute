@@ -17,7 +17,7 @@ jobs:
           - os: macos-13
             target: x86_64-apple-darwin
             args: --bundles app,dmg
-          - os: macos-14
+          - os: macos-15
             target: aarch64-apple-darwin
             args: --bundles app,dmg
           - os: ubuntu-22.04
@@ -28,6 +28,8 @@ jobs:
       RUST_TARGET: ${{ matrix.target }}
       BUNDLE_ARGS: ${{ matrix.args }}
     steps:
+      - name: Disable Git CRLF conversion
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:

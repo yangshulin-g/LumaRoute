@@ -16,7 +16,7 @@
     "test:integration": "pnpm --filter @lumaroute/integration test",
     "test:e2e": "playwright test",
     "acceptance": "pnpm check && pnpm test:integration && pnpm test:e2e",
-    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "check:boundaries": "node --test scripts/check-boundaries.test.mjs && node scripts/check-boundaries.mjs",
     "check:sensitive": "node scripts/check-sensitive-output.mjs",
     "check:mpv": "node --test scripts/verify-mpv.test.mjs && node scripts/verify-mpv.mjs manifest",
     "check:mpv:installed": "node scripts/verify-mpv.mjs installed --fixtures h264,h265,av1",

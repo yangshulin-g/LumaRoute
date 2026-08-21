@@ -1,19 +1,24 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { describe, it } from 'node:test'
+import { fileURLToPath } from 'node:url'
 import {
   connectIpcWhenReady,
   createIpcEndpoint,
+  loadManifest,
   openIpc,
   runIpcSmokeCommands,
   sendIpc,
+  sha256File,
   validateManifest,
   verifyInstalledFixture,
 } from './verify-mpv.mjs'
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 const IPC_TEST_TIMEOUT_MS = 250
 
@@ -103,6 +108,21 @@ describe('mpv manifest', () => {
     manifest.builds['x86_64-pc-windows-msvc'].sourceUrl = 'https://example.invalid/latest.zip'
     manifest.builds['x86_64-pc-windows-msvc'].sha256 = 'abc'
     assert.throws(() => validateManifest(manifest))
+  })
+
+  it('keeps committed license files as LF bytes matching the lockfile', async () => {
+    const manifest = loadManifest()
+    const seen = new Set()
+    for (const build of Object.values(manifest.builds)) {
+      for (const license of build.licenses) {
+        const filePath = join(ROOT, 'apps/desktop/src-tauri', license.path)
+        const bytes = readFileSync(filePath)
+        assert.equal(bytes.includes(0x0d), false, `${license.path} must not contain CR`)
+        assert.equal(await sha256File(filePath), license.sha256, license.path)
+        seen.add(license.path)
+      }
+    }
+    assert.ok(seen.size >= 2)
   })
 })
 

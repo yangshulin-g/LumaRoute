@@ -1,0 +1,2 @@
+# License SHA-256 values in mpv.lock.json are of LF bytes.
+apps/desktop/src-tauri/resources/third-party/*.txt text eol=lf
