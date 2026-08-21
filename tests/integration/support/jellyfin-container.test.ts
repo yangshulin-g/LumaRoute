@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 import {
   configureStartupUser,
+  controlledFixtureDirectory,
+  ensureControlledMediaFixture,
   fetchJsonWithRetry,
   probeContainerRuntime,
   randomPassword,
@@ -32,6 +36,27 @@ describe('Jellyfin harness helpers', () => {
     })
     expect(available).toBe(true)
     expect(calls.count).toBe(3)
+  })
+
+  it('does not treat Windows hosts as a usable Jellyfin container runtime', async () => {
+    await expect(
+      probeContainerRuntime({
+        platform: 'win32',
+        delayMs: 0,
+        probe: async () => {
+          /* docker info would succeed on some Windows runners */
+        },
+      }),
+    ).resolves.toBe(false)
+  })
+
+  it('keeps a scannable MP4 fixture with ftyp, moov, and mdat', async () => {
+    await ensureControlledMediaFixture()
+    const bytes = await readFile(path.join(controlledFixtureDirectory(), 'sample.mp4'))
+    for (const box of ['ftyp', 'moov', 'mdat'] as const) {
+      expect(bytes.includes(Buffer.from(box)), box).toBe(true)
+    }
+    expect(bytes.byteLength).toBeGreaterThan(1000)
   })
 
   it('retries a transient 500 from the startup wizard then succeeds', async () => {

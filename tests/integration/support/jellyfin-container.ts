@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers'
@@ -24,14 +24,12 @@ export function controlledFixtureDirectory(): string {
 
 export async function ensureControlledMediaFixture(): Promise<void> {
   await mkdir(FIXTURE_DIR, { recursive: true })
-  // Minimal ISO BMFF (ftyp) so Jellyfin may register a video item during library scan.
   const samplePath = path.join(FIXTURE_DIR, 'sample.mp4')
-  const payload = Buffer.from([
-    0x00, 0x00, 0x00, 0x1c, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d, 0x00, 0x00, 0x02, 0x00,
-    0x69, 0x73, 0x6f, 0x6d, 0x69, 0x73, 0x6f, 0x32, 0x6d, 0x70, 0x34, 0x31, 0x00, 0x00, 0x00, 0x08,
-    0x66, 0x72, 0x65, 0x65,
-  ])
-  await writeFile(samplePath, payload)
+  const bytes = await readFile(samplePath)
+  const boxes = ['ftyp', 'moov', 'mdat']
+  if (bytes.byteLength < 1000 || boxes.some((box) => !bytes.includes(Buffer.from(box)))) {
+    throw new Error('controlled media fixture must be a scannable MP4 with ftyp, moov, and mdat')
+  }
 }
 
 type WizardOptions = {
@@ -98,9 +96,10 @@ export class JellyfinHarness {
     })
     await fetchJsonWithRetry(`${base}/Startup/Complete`, { method: 'POST' })
 
-    const auth = await authenticateAfterWizard(base, startupUser)
+    let auth = await authenticateAfterWizard(base, startupUser)
     if (!startupUser.passwordSet) {
       await setUserPassword(base, auth, options.password)
+      auth = await authenticateByName(base, startupUser.username, options.password)
     }
     this.password = options.password
 
@@ -117,6 +116,10 @@ export class JellyfinHarness {
         },
       },
     )
+    await fetchJson(`${base}/Library/Refresh`, {
+      method: 'POST',
+      headers: { 'X-Emby-Token': auth.AccessToken },
+    })
 
     await waitForItems(base, auth.AccessToken, auth.User.Id)
   }
@@ -153,7 +156,10 @@ export async function probeContainerRuntime(options: {
   probe?: () => Promise<void>
   attempts?: number
   delayMs?: number
+  platform?: NodeJS.Platform
 } = {}): Promise<boolean> {
+  const platform = options.platform ?? process.platform
+  if (platform === 'win32') return false
   const probe = options.probe ?? defaultDockerProbe
   const attempts = Math.max(1, options.attempts ?? 5)
   const delayMs = options.delayMs ?? 400
