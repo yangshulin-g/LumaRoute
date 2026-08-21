@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict'
+import { EventEmitter } from 'node:events'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { createServer } from 'node:net'
-import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import {
+  connectIpcWhenReady,
+  createIpcEndpoint,
   openIpc,
   runIpcSmokeCommands,
   sendIpc,
@@ -14,9 +17,9 @@ import {
 
 const IPC_TEST_TIMEOUT_MS = 250
 
-async function withFakeIpc(onRequest, run) {
+async function withFakeIpc(onRequest, run, listenPath) {
   const dir = mkdtempSync(join(tmpdir(), 'lr-ipc-test-'))
-  const socketPath = join(dir, 'mpv.sock')
+  const socketPath = listenPath ?? join(dir, 'mpv.sock')
   const server = createServer((socket) => {
     socket.setEncoding('utf8')
     let buffer = ''
@@ -281,5 +284,108 @@ describe('JSON IPC command execution', () => {
         session.close()
       }
     })
+  })
+})
+
+describe('JSON IPC endpoint shape', () => {
+  it('uses a named-pipe IPC endpoint for Windows targets and platforms', () => {
+    const cases = [{ target: 'x86_64-pc-windows-msvc' }, { platform: 'win32' }]
+    for (const input of cases) {
+      const endpoint = createIpcEndpoint({ ...input, id: 'fixed-id', runtimeDir: '/tmp/unused' })
+      assert.equal(endpoint.kind, 'pipe')
+      assert.equal(endpoint.path, '\\\\.\\pipe\\lumaroute-mpv-fixed-id')
+      assert.equal(existsSync(endpoint.path), false)
+    }
+  })
+
+  it('uses a filesystem socket path for Unix targets and platforms', () => {
+    const runtimeDir = '/tmp/lr-ipc-runtime'
+    const cases = [
+      { target: 'x86_64-apple-darwin' },
+      { target: 'aarch64-apple-darwin' },
+      { target: 'x86_64-unknown-linux-gnu' },
+      { platform: 'darwin' },
+      { platform: 'linux' },
+    ]
+    for (const input of cases) {
+      const endpoint = createIpcEndpoint({ ...input, runtimeDir })
+      assert.equal(endpoint.kind, 'socket')
+      assert.equal(endpoint.path, join(runtimeDir, 'mpv.sock'))
+    }
+  })
+
+  it('openIpc connects using a Unix socket endpoint from createIpcEndpoint', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lr-ipc-unix-'))
+    const endpoint = createIpcEndpoint({ target: 'x86_64-unknown-linux-gnu', runtimeDir: dir })
+    try {
+      await withFakeIpc(
+        (socket, request) => {
+          replySuccess(socket, request, { data: 'mpv-test' })
+        },
+        async () => {
+          const session = await openIpc(endpoint, { timeoutMs: IPC_TEST_TIMEOUT_MS })
+          try {
+            const reply = await sendIpc(session, { command: ['get_property', 'mpv-version'] })
+            assert.equal(reply.error, 'success')
+            assert.equal(reply.data, 'mpv-test')
+          } finally {
+            session.close()
+          }
+        },
+        endpoint.path,
+      )
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('openIpc connects using the named-pipe path, not a socket file', async () => {
+    const endpoint = createIpcEndpoint({ platform: 'win32', id: 'smoke' })
+    await withFakeIpc(
+      (socket, request) => {
+        replySuccess(socket, request, { data: 'ok' })
+      },
+      async (unixPath) => {
+        const net = await import('node:net')
+        let used
+        const session = await openIpc(endpoint, {
+          timeoutMs: IPC_TEST_TIMEOUT_MS,
+          net: {
+            createConnection(opts) {
+              used = opts
+              return net.createConnection(unixPath)
+            },
+          },
+        })
+        try {
+          assert.deepEqual(used, { path: '\\\\.\\pipe\\lumaroute-mpv-smoke' })
+          const reply = await sendIpc(session, { command: ['get_property', 'mpv-version'] })
+          assert.equal(reply.error, 'success')
+        } finally {
+          session.close()
+        }
+      },
+    )
+  })
+
+  it('fails closed when a Windows named pipe never accepts a connection', async () => {
+    const endpoint = createIpcEndpoint({ platform: 'win32', id: 'never' })
+    await assert.rejects(
+      connectIpcWhenReady(endpoint, {
+        timeoutMs: 80,
+        net: {
+          createConnection() {
+            const sock = new EventEmitter()
+            sock.setEncoding = () => {}
+            sock.destroy = () => {}
+            queueMicrotask(() => {
+              sock.emit('error', Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
+            })
+            return sock
+          },
+        },
+      }),
+      /ipc-connect|timeout/i,
+    )
   })
 })

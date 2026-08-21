@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { execFileSync, spawnSync } from 'node:child_process'
 import {
   copyFileSync,
@@ -458,10 +458,31 @@ class MpvIpcSession {
   }
 }
 
-export async function openIpc(socketPath, options = {}) {
-  const net = await import('node:net')
+export function createIpcEndpoint({
+  target,
+  platform = process.platform,
+  runtimeDir,
+  id,
+} = {}) {
+  const windows =
+    platform === 'win32' || (typeof target === 'string' && target.includes('windows'))
+  const token = id ?? randomUUID()
+  if (windows) {
+    return { kind: 'pipe', path: `\\\\.\\pipe\\lumaroute-mpv-${token}` }
+  }
+  if (!runtimeDir) throw new Error('runtimeDir required for unix ipc')
+  return { kind: 'socket', path: join(runtimeDir, 'mpv.sock') }
+}
+
+export function ipcEndpointPath(endpoint) {
+  return typeof endpoint === 'string' ? endpoint : endpoint.path
+}
+
+export async function openIpc(endpoint, options = {}) {
+  const net = options.net ?? (await import('node:net'))
   const timeoutMs = options.timeoutMs ?? 5_000
-  const socket = net.createConnection(socketPath)
+  const path = ipcEndpointPath(endpoint)
+  const socket = net.createConnection({ path })
   await new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       socket.destroy()
@@ -477,6 +498,36 @@ export async function openIpc(socketPath, options = {}) {
     })
   })
   return new MpvIpcSession(socket, { timeoutMs })
+}
+
+export async function connectIpcWhenReady(endpoint, options = {}) {
+  const timeoutMs = options.timeoutMs ?? 5_000
+  const start = Date.now()
+  const path = ipcEndpointPath(endpoint)
+  const kind =
+    typeof endpoint === 'object' && endpoint.kind
+      ? endpoint.kind
+      : /^\\\\[.]\\pipe\\/i.test(path)
+        ? 'pipe'
+        : 'socket'
+  let lastError
+  while (Date.now() - start < timeoutMs) {
+    if (kind === 'socket' && !existsSync(path)) {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      continue
+    }
+    try {
+      const remaining = Math.max(50, timeoutMs - (Date.now() - start))
+      return await openIpc(endpoint, {
+        ...options,
+        timeoutMs: Math.min(250, remaining),
+      })
+    } catch (error) {
+      lastError = error
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+  }
+  throw new Error('ipc-connect', lastError ? { cause: lastError } : undefined)
 }
 
 export async function sendIpc(session, payload) {
@@ -594,9 +645,13 @@ function assertNoSensitiveLeak(text, surface) {
   }
 }
 
-async function ipcSmoke(executable, samplePaths) {
+async function ipcSmoke(executable, samplePaths, options = {}) {
   const runtime = mkdtempSync(join(tmpdir(), 'lumaroute-mpv-ipc-'))
-  const socket = join(runtime, 'mpv.sock')
+  const endpoint = createIpcEndpoint({
+    runtimeDir: runtime,
+    platform: process.platform,
+    target: options.target,
+  })
   const { spawn } = await import('node:child_process')
   const args = [
     '--idle=yes',
@@ -604,7 +659,7 @@ async function ipcSmoke(executable, samplePaths) {
     '--no-terminal',
     '--vo=null',
     '--ao=null',
-    `--input-ipc-server=${socket}`,
+    `--input-ipc-server=${endpoint.path}`,
   ]
   assertNoSensitiveLeak(args.join(' '), 'process arguments')
   const proc = spawn(executable, args, { stdio: ['ignore', 'pipe', 'pipe'] })
@@ -614,8 +669,7 @@ async function ipcSmoke(executable, samplePaths) {
   proc.stderr.on('data', (chunk) => logs.push(String(chunk)))
 
   try {
-    await waitFor(() => existsSync(socket), 5_000, 'JSON IPC socket')
-    const session = await openIpc(socket)
+    const session = await connectIpcWhenReady(endpoint)
     try {
       await runIpcSmokeCommands(session, samplePaths)
     } finally {
@@ -631,16 +685,6 @@ async function ipcSmoke(executable, samplePaths) {
     if (!proc.killed) proc.kill('SIGKILL')
     rmSync(runtime, { recursive: true, force: true })
   }
-}
-
-
-async function waitFor(predicate, timeoutMs, label) {
-  const start = Date.now()
-  while (Date.now() - start < timeoutMs) {
-    if (predicate()) return
-    await new Promise((r) => setTimeout(r, 50))
-  }
-  throw new Error(`timed out waiting for ${label}`)
 }
 
 async function ensureSamplesDownloaded(lockPath = SAMPLES_LOCK_PATH) {
@@ -691,7 +735,7 @@ export async function qualifyTarget({ target, archive, sourceUrl, fixtures }) {
     if (selected.length === 0) throw new Error('no fixtures selected for qualify')
 
     await probeSoftwareDecode(executable, selected)
-    await ipcSmoke(executable, selected)
+    await ipcSmoke(executable, selected, { target })
 
     let licenseSources = discoverLicenseFiles(work)
     if (licenseSources.length === 0) {
@@ -827,7 +871,7 @@ export async function verifyInstalled(
       if (!sample) throw new Error(`${label} software decode failed`)
       await probeSoftwareDecode(sidecar, [sample])
     },
-    ipc: () => ipcSmoke(sidecar, selected),
+    ipc: () => ipcSmoke(sidecar, selected, { target }),
   })
   await verifyLicenseHashes(build)
   console.log(`PASS installed mpv qualification ${version} for ${target}`)
