@@ -142,10 +142,27 @@ process.on('SIGINT', () => server.close(() => process.exit(0)))
 fn packaged_sidecar_path() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("resources/bin")
-        .join(format!(
-            "mpv-{}",
-            lumaroute_lib::mpv::process::rust_target_triple()
+        .join(lumaroute_lib::mpv::process::sidecar_file_name(
+            lumaroute_lib::mpv::process::rust_target_triple(),
         ))
+}
+
+#[test]
+fn packaged_sidecar_path_uses_production_sidecar_file_name() {
+    let expected = lumaroute_lib::mpv::process::sidecar_file_name(
+        lumaroute_lib::mpv::process::rust_target_triple(),
+    );
+    assert_eq!(
+        packaged_sidecar_path()
+            .file_name()
+            .unwrap()
+            .to_string_lossy(),
+        expected.as_str()
+    );
+    assert_eq!(
+        lumaroute_lib::mpv::process::sidecar_file_name("x86_64-pc-windows-msvc"),
+        "mpv-x86_64-pc-windows-msvc.exe"
+    );
 }
 
 fn tempfile_runtime_dir() -> PathBuf {

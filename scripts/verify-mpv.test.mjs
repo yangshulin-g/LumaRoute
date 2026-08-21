@@ -1,6 +1,51 @@
 import assert from 'node:assert/strict'
+import { createServer } from 'node:net'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, it } from 'node:test'
-import { validateManifest, verifyInstalledFixture } from './verify-mpv.mjs'
+import {
+  openIpc,
+  runIpcSmokeCommands,
+  sendIpc,
+  validateManifest,
+  verifyInstalledFixture,
+} from './verify-mpv.mjs'
+
+const IPC_TEST_TIMEOUT_MS = 250
+
+async function withFakeIpc(onRequest, run) {
+  const dir = mkdtempSync(join(tmpdir(), 'lr-ipc-test-'))
+  const socketPath = join(dir, 'mpv.sock')
+  const server = createServer((socket) => {
+    socket.setEncoding('utf8')
+    let buffer = ''
+    socket.on('data', (chunk) => {
+      buffer += chunk
+      for (;;) {
+        const newline = buffer.indexOf('\n')
+        if (newline < 0) break
+        const raw = buffer.slice(0, newline)
+        buffer = buffer.slice(newline + 1)
+        if (!raw.trim()) continue
+        onRequest(socket, JSON.parse(raw))
+      }
+    })
+  })
+  await new Promise((resolve, reject) => {
+    server.listen(socketPath, (error) => (error ? reject(error) : resolve()))
+  })
+  try {
+    return await run(socketPath)
+  } finally {
+    await new Promise((resolve) => server.close(resolve))
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+function replySuccess(socket, request, extra = {}) {
+  socket.write(`${JSON.stringify({ request_id: request.request_id, error: 'success', ...extra })}\n`)
+}
 
 function fixtureManifest() {
   const build = (extra = {}) => ({
@@ -74,5 +119,167 @@ describe('installed qualification', () => {
       verifyInstalledFixture({ fixtures: 'h264,h265', ipc: false }),
       /h264,h265,av1 and JSON IPC are required/,
     )
+  })
+
+  it('fails when required probe or ipc callbacks are missing', async () => {
+    await assert.rejects(
+      verifyInstalledFixture({ fixtures: 'h264,h265,av1' }),
+      /h264,h265,av1 and JSON IPC are required/,
+    )
+    await assert.rejects(
+      verifyInstalledFixture({
+        fixtures: 'h264,h265,av1',
+        requireIpc: true,
+        probe: () => {},
+        ipc: true,
+      }),
+      /h264,h265,av1 and JSON IPC are required/,
+    )
+  })
+})
+
+describe('JSON IPC command execution', () => {
+  it('does not treat an uncorrelated JSON line as command success', async () => {
+    await withFakeIpc((socket) => {
+      socket.write(`${JSON.stringify({ event: 'unrelated' })}\n`)
+    }, async (socketPath) => {
+      const session = await openIpc(socketPath, { timeoutMs: IPC_TEST_TIMEOUT_MS })
+      try {
+        await assert.rejects(
+          sendIpc(session, { command: ['get_property', 'mpv-version'] }),
+          /timeout|success|reply|request/i,
+        )
+      } finally {
+        session.close()
+      }
+    })
+  })
+
+  it('rejects a command reply whose error is not success', async () => {
+    await withFakeIpc((socket, request) => {
+      socket.write(
+        `${JSON.stringify({ request_id: request.request_id, error: 'invalid parameter' })}\n`,
+      )
+    }, async (socketPath) => {
+      const session = await openIpc(socketPath, { timeoutMs: IPC_TEST_TIMEOUT_MS })
+      try {
+        await assert.rejects(
+          sendIpc(session, { command: ['get_property', 'mpv-version'] }),
+          /success|failed/i,
+        )
+      } finally {
+        session.close()
+      }
+    })
+  })
+
+  it('ignores success replies that do not match the request id', async () => {
+    await withFakeIpc((socket, request) => {
+      socket.write(
+        `${JSON.stringify({ request_id: Number(request.request_id) + 99, error: 'success' })}\n`,
+      )
+      socket.write(`${JSON.stringify({ event: 'unrelated' })}\n`)
+    }, async (socketPath) => {
+      const session = await openIpc(socketPath, { timeoutMs: IPC_TEST_TIMEOUT_MS })
+      try {
+        await assert.rejects(
+          sendIpc(session, { command: ['get_property', 'mpv-version'] }),
+          /timeout|success|reply|request/i,
+        )
+      } finally {
+        session.close()
+      }
+    })
+  })
+
+  it('requires file-loaded after a successful loadfile reply', async () => {
+    await withFakeIpc((socket, request) => {
+      replySuccess(socket, request)
+    }, async (socketPath) => {
+      const session = await openIpc(socketPath, { timeoutMs: IPC_TEST_TIMEOUT_MS })
+      try {
+        await assert.rejects(
+          runIpcSmokeCommands(session, ['/tmp/lumaroute-sample.mkv']),
+          /file-loaded|timeout/i,
+        )
+      } finally {
+        session.close()
+      }
+    })
+  })
+
+  it('requires pause, resume, seek, and end-file evidence after each command', async () => {
+    await withFakeIpc((socket, request) => {
+      replySuccess(socket, request)
+      if (request.command?.[0] === 'loadfile') {
+        socket.write(`${JSON.stringify({ event: 'file-loaded' })}\n`)
+      }
+    }, async (socketPath) => {
+      const session = await openIpc(socketPath, { timeoutMs: IPC_TEST_TIMEOUT_MS })
+      try {
+        await assert.rejects(
+          runIpcSmokeCommands(session, ['/tmp/lumaroute-sample.mkv']),
+          /pause|resume|seek|end-file|timeout/i,
+        )
+      } finally {
+        session.close()
+      }
+    })
+  })
+
+  it('accepts request-correlated success plus observed control events', async () => {
+    await withFakeIpc((socket, request) => {
+      const [command, name, value] = request.command ?? []
+      replySuccess(socket, request, command === 'get_property' && name === 'pause' ? { data: value } : {})
+      if (command === 'loadfile') {
+        socket.write(`${JSON.stringify({ event: 'file-loaded' })}\n`)
+      }
+      if (command === 'set_property' && name === 'pause') {
+        socket.write(
+          `${JSON.stringify({ event: 'property-change', name: 'pause', data: value })}\n`,
+        )
+      }
+      if (command === 'seek') {
+        socket.write(`${JSON.stringify({ event: 'seek' })}\n`)
+      }
+      if (command === 'stop') {
+        socket.write(`${JSON.stringify({ event: 'end-file', reason: 'stop' })}\n`)
+      }
+    }, async (socketPath) => {
+      const session = await openIpc(socketPath, { timeoutMs: IPC_TEST_TIMEOUT_MS })
+      try {
+        await runIpcSmokeCommands(session, ['/tmp/lumaroute-sample.mkv'])
+      } finally {
+        session.close()
+      }
+    })
+  })
+
+  it('keeps IPC failures category-only without headers or private URLs', async () => {
+    const privateUrl = 'https://media.example/private.mkv?token=secret'
+    await withFakeIpc((socket, request) => {
+      if (request.command?.[0] === 'loadfile') {
+        socket.write(
+          `${JSON.stringify({ request_id: request.request_id, error: 'invalid parameter' })}\n`,
+        )
+        return
+      }
+      replySuccess(socket, request)
+    }, async (socketPath) => {
+      const session = await openIpc(socketPath, { timeoutMs: IPC_TEST_TIMEOUT_MS })
+      try {
+        await assert.rejects(async () => {
+          try {
+            await runIpcSmokeCommands(session, [privateUrl])
+          } catch (error) {
+            const text = String(error?.message ?? error)
+            assert.doesNotMatch(text, /token=secret|Authorization|https:\/\/media\.example/i)
+            throw error
+          }
+        })
+      } finally {
+        session.close()
+      }
+    })
   })
 })

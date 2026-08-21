@@ -320,10 +320,243 @@ export async function verifyInstalledFixture({
   if (names.join(',') !== 'h264,h265,av1' || !ipcRequired) {
     throw new Error('h264,h265,av1 and JSON IPC are required for Internal Alpha')
   }
-  for (const name of names) {
-    if (typeof probe === 'function') await probe(name)
+  if (typeof probe !== 'function' || (ipcRequired && typeof ipc !== 'function')) {
+    throw new Error('h264,h265,av1 and JSON IPC are required for Internal Alpha')
   }
-  if (typeof ipc === 'function') await ipc()
+  for (const name of names) {
+    await probe(name)
+  }
+  await ipc()
+}
+
+class MpvIpcSession {
+  constructor(socket, options = {}) {
+    this.socket = socket
+    this.timeoutMs = options.timeoutMs ?? 5_000
+    this.buffer = ''
+    this.nextId = 1
+    this.seq = 0
+    this.pending = new Map()
+    this.events = []
+    this.waiters = new Set()
+
+    socket.setEncoding('utf8')
+    socket.on('data', (chunk) => this.#push(chunk))
+    socket.on('error', (error) => this.#failAll(error))
+    socket.on('close', () => this.#failAll(new Error('ipc-connect')))
+  }
+
+  mark() {
+    return this.seq
+  }
+
+  take(predicate) {
+    const index = this.events.findIndex(predicate)
+    if (index < 0) return null
+    return this.events.splice(index, 1)[0]
+  }
+
+  send(payload) {
+    const request_id = payload.request_id ?? this.nextId++
+    const message = { ...payload, request_id }
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(request_id)
+        reject(new Error('ipc timeout'))
+      }, this.timeoutMs)
+      this.pending.set(request_id, {
+        resolve: (value) => {
+          clearTimeout(timer)
+          resolve(value)
+        },
+        reject: (error) => {
+          clearTimeout(timer)
+          reject(error)
+        },
+      })
+      this.socket.write(`${JSON.stringify(message)}\n`)
+    })
+  }
+
+  waitFor(predicate, label) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.waiters.delete(waiter)
+        reject(new Error(`timed out waiting for ${label}`))
+      }, this.timeoutMs)
+      const waiter = {
+        fail: (error) => {
+          clearTimeout(timer)
+          reject(error)
+        },
+        trySettle: () => {
+          try {
+            const index = this.events.findIndex(predicate)
+            if (index < 0) return false
+            const event = this.events.splice(index, 1)[0]
+            clearTimeout(timer)
+            this.waiters.delete(waiter)
+            resolve(event)
+            return true
+          } catch (error) {
+            clearTimeout(timer)
+            this.waiters.delete(waiter)
+            reject(error)
+            return true
+          }
+        },
+      }
+      this.waiters.add(waiter)
+      waiter.trySettle()
+    })
+  }
+
+  close() {
+    this.#failAll(new Error('ipc-connect'))
+    this.socket.destroy()
+  }
+
+  #push(chunk) {
+    this.buffer += chunk
+    let newline
+    while ((newline = this.buffer.indexOf('\n')) >= 0) {
+      const raw = this.buffer.slice(0, newline).trim()
+      this.buffer = this.buffer.slice(newline + 1)
+      if (!raw) continue
+      let message
+      try {
+        message = JSON.parse(raw)
+      } catch {
+        this.#failAll(new Error('ipc-failed'))
+        return
+      }
+      this.#dispatch(message)
+    }
+  }
+
+  #dispatch(message) {
+    if (message.request_id != null && message.event == null) {
+      const pending = this.pending.get(message.request_id)
+      if (!pending) return
+      this.pending.delete(message.request_id)
+      if (message.error === 'success') pending.resolve(message)
+      else pending.reject(new Error('ipc command failed'))
+      return
+    }
+    if (message.event) {
+      this.seq += 1
+      this.events.push({ ...message, seq: this.seq })
+      for (const waiter of this.waiters) waiter.trySettle()
+    }
+  }
+
+  #failAll(error) {
+    for (const pending of this.pending.values()) pending.reject(error)
+    this.pending.clear()
+    for (const waiter of this.waiters) waiter.fail(error)
+    this.waiters.clear()
+  }
+}
+
+export async function openIpc(socketPath, options = {}) {
+  const net = await import('node:net')
+  const timeoutMs = options.timeoutMs ?? 5_000
+  const socket = net.createConnection(socketPath)
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      socket.destroy()
+      reject(new Error('ipc timeout'))
+    }, timeoutMs)
+    socket.once('connect', () => {
+      clearTimeout(timer)
+      resolve()
+    })
+    socket.once('error', (error) => {
+      clearTimeout(timer)
+      reject(error)
+    })
+  })
+  return new MpvIpcSession(socket, { timeoutMs })
+}
+
+export async function sendIpc(session, payload) {
+  if (typeof session?.send !== 'function') {
+    throw new Error('JSON IPC requires one connected session')
+  }
+  return session.send(payload)
+}
+
+function isFileLoaded(event) {
+  return event.event === 'file-loaded'
+}
+
+function isSeeked(event) {
+  return event.event === 'seek' || event.event === 'playback-restart'
+}
+
+function isEndFile(event) {
+  return event.event === 'end-file'
+}
+
+function isPauseObserved(paused) {
+  return (event) =>
+    event.event === 'property-change' && event.name === 'pause' && event.data === paused
+}
+
+async function expectCommand(session, payload, predicate, label) {
+  const since = session.mark()
+  await sendIpc(session, payload)
+  await session.waitFor((event) => {
+    if (event.seq <= since) return false
+    if (label === 'file-loaded' && event.event === 'end-file' && event.reason === 'error') {
+      throw new Error('decode-failed')
+    }
+    return predicate(event)
+  }, label)
+}
+
+async function expectPause(session, paused) {
+  const since = session.mark()
+  await sendIpc(session, { command: ['set_property', 'pause', paused] })
+  const label = paused ? 'pause' : 'resume'
+  const deadline = Date.now() + session.timeoutMs
+  while (Date.now() < deadline) {
+    if (session.take((event) => event.seq > since && isPauseObserved(paused)(event))) {
+      return
+    }
+    try {
+      const reply = await sendIpc(session, { command: ['get_property', 'pause'] })
+      if (reply.data === paused) return
+    } catch {
+      // Keep polling until the deadline; the public error stays category-only.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+  throw new Error(`timed out waiting for ${label}`)
+}
+
+export async function runIpcSmokeCommands(session, samplePaths) {
+  await sendIpc(session, { command: ['observe_property', 1, 'pause'] })
+  await sendIpc(session, { command: ['observe_property', 2, 'time-pos'] })
+  await sendIpc(session, { command: ['get_property', 'mpv-version'] })
+  for (const sample of samplePaths) {
+    await expectCommand(
+      session,
+      { command: ['loadfile', sample, 'replace'] },
+      isFileLoaded,
+      'file-loaded',
+    )
+    await expectPause(session, true)
+    await expectPause(session, false)
+    await expectCommand(session, { command: ['seek', 0, 'absolute'] }, isSeeked, 'seek')
+    await expectCommand(session, { command: ['stop'] }, isEndFile, 'end-file')
+  }
+  try {
+    await sendIpc(session, { command: ['quit'] })
+  } catch (error) {
+    const raw = String(error?.message ?? error)
+    if (!/ipc-connect|EPIPE|ECONNRESET/i.test(raw)) throw error
+  }
 }
 
 export async function probeSoftwareDecode(executable, samplePaths) {
@@ -382,15 +615,12 @@ async function ipcSmoke(executable, samplePaths) {
 
   try {
     await waitFor(() => existsSync(socket), 5_000, 'JSON IPC socket')
-    await sendIpc(socket, { command: ['get_property', 'mpv-version'] })
-    for (const sample of samplePaths) {
-      await sendIpc(socket, { command: ['loadfile', sample, 'replace'] })
-      await sendIpc(socket, { command: ['set_property', 'pause', true] })
-      await sendIpc(socket, { command: ['set_property', 'pause', false] })
-      await sendIpc(socket, { command: ['seek', 0, 'absolute'] })
-      await sendIpc(socket, { command: ['stop'] })
+    const session = await openIpc(socket)
+    try {
+      await runIpcSmokeCommands(session, samplePaths)
+    } finally {
+      session.close()
     }
-    await sendIpc(socket, { command: ['quit'] })
     const joined = logs.join('')
     assertNoSensitiveLeak(joined, 'logs')
     console.log('PASS JSON IPC startup/load/pause/seek/stop/end')
@@ -403,32 +633,6 @@ async function ipcSmoke(executable, samplePaths) {
   }
 }
 
-async function sendIpc(socketPath, payload) {
-  const net = await import('node:net')
-  await new Promise((resolvePromise, reject) => {
-    const client = net.createConnection(socketPath)
-    let buffer = ''
-    const timer = setTimeout(() => {
-      client.destroy()
-      reject(new Error('ipc timeout'))
-    }, 5_000)
-    client.on('connect', () => {
-      client.write(`${JSON.stringify(payload)}\n`)
-    })
-    client.on('data', (chunk) => {
-      buffer += String(chunk)
-      if (buffer.includes('\n')) {
-        clearTimeout(timer)
-        client.end()
-        resolvePromise(buffer)
-      }
-    })
-    client.on('error', (error) => {
-      clearTimeout(timer)
-      reject(error)
-    })
-  })
-}
 
 async function waitFor(predicate, timeoutMs, label) {
   const start = Date.now()
