@@ -1,6 +1,7 @@
 name: quality
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches: [master, main]
@@ -55,7 +56,10 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
-      - run: pnpm test:rust
+      - name: Rust tests with required real mpv sidecar
+        run: pnpm test:rust
+        env:
+          LUMAROUTE_REQUIRE_REAL_MPV: '1'
       - run: pnpm check:boundaries
       - run: node --test scripts/verify-mpv.test.mjs
       - run: node scripts/verify-mpv.mjs manifest

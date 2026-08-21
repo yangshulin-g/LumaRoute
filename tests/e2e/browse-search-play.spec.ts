@@ -10,7 +10,7 @@ test('browses, searches, starts playback, and shows progress', async ({
   await page.getByTestId('library-movies').click()
   await expect(page.getByTestId('media-card').first()).toBeVisible()
   await page.getByRole('searchbox').first().fill('Arrival')
-  await page.getByText('Arrival').click()
+  await page.getByTestId('media-card').filter({ hasText: 'Arrival' }).click()
   await page.getByTestId('play').click()
   await expect(page.getByTestId('player-state')).toHaveText('播放中')
   await fakeMpv.advanceTo(12)

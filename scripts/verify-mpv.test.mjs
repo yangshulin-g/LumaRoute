@@ -378,7 +378,7 @@ describe('JSON IPC endpoint shape', () => {
             const sock = new EventEmitter()
             sock.setEncoding = () => {}
             sock.destroy = () => {}
-            queueMicrotask(() => {
+            globalThis.queueMicrotask(() => {
               sock.emit('error', Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
             })
             return sock
