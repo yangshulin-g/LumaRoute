@@ -83,11 +83,13 @@ live 容器与实机证据，不删除 Jellyfin 产品能力。
 CI 必须生成：
 
 - Windows x64：MSI、NSIS EXE。
-- macOS：Intel 与 Apple Silicon 构建产物；可在具备条件时合并 Universal DMG。
+- macOS Apple Silicon：DMG。
 - Linux x64：AppImage、deb。
 - 每个产物对应的 SHA-256 文件。
 
 Linux 本阶段只要求 CI 构建和自动冒烟。macOS 与 Windows 还需要实机安装和播放证据。
+macOS Intel runner 当前不可用，因此 `macos-13` / `x86_64-apple-darwin`
+质量、打包和实机证据延期；Apple Silicon 结果不得充当 Intel 证据。
 
 内部 Alpha 产物必须清楚标注：
 
@@ -100,7 +102,7 @@ Linux 本阶段只要求 CI 构建和自动冒烟。macOS 与 Windows 还需要�
 
 ### 6.1 平台
 
-- macOS：安装、首次启动、播放、退出和卸载。
+- macOS Apple Silicon：安装、首次启动、播放、退出和卸载。
 - Windows x64：安装、首次启动、播放、退出和卸载。
 - Linux x64：CI 构建和自动冒烟，不要求本阶段提供实机证据。
 
@@ -145,5 +147,5 @@ Internal Alpha；对应验收项保持未勾选并明确标记为 deferred。
 5. 真实 mpv 样片冒烟通过或对硬件限制有明确记录。
 6. 凭证泄漏扫描为零发现。
 
-Jellyfin live 容器与实机闭环、签名、公证、公开许可证声明和普通用户分发
-继续作为后续门禁，不阻塞本次内部 Alpha。
+Jellyfin live 容器与实机闭环、macOS Intel CI/实机证据、签名、公证、
+公开许可证声明和普通用户分发继续作为后续门禁，不阻塞本次内部 Alpha。
