@@ -10,8 +10,8 @@
 本阶段不新增产品能力，只为现有 v0.1 建立可信的真实运行和打包证据：
 
 1. 以 Emby 为首个实机服务端，验证浏览、播放和进度回写闭环。
-2. 验证独立 mpv 进程在 macOS 与 Windows 安装包中可真实工作。
-3. 验证 Windows、macOS、Linux 约定产物可由 CI 构建。
+2. 验证独立 mpv 进程在 macOS Apple Silicon 与 Windows 安装包中可真实工作。
+3. 验证 Windows 与 macOS Apple Silicon 约定产物可由 CI 构建。
 4. 补齐播放启动失败后使用备用线路重建播放计划的专用自动化证据。
 5. 将自动化、实机和环境限制统一记录到 v0.1 验收文档。
 
@@ -84,10 +84,10 @@ CI 必须生成：
 
 - Windows x64：MSI、NSIS EXE。
 - macOS Apple Silicon：DMG。
-- Linux x64：AppImage、deb。
 - 每个产物对应的 SHA-256 文件。
 
-Linux 本阶段只要求 CI 构建和自动冒烟。macOS 与 Windows 还需要实机安装和播放证据。
+Linux x64 AppImage/deb 质量、打包和原生 mpv 资格延期；Ubuntu 结果不得充当
+本阶段硬门。macOS 与 Windows 还需要实机安装和播放证据。
 macOS Intel runner 当前不可用，因此 `macos-13` / `x86_64-apple-darwin`
 质量、打包和实机证据延期；Apple Silicon 结果不得充当 Intel 证据。
 
@@ -104,7 +104,7 @@ macOS Intel runner 当前不可用，因此 `macos-13` / `x86_64-apple-darwin`
 
 - macOS Apple Silicon：安装、首次启动、播放、退出和卸载。
 - Windows x64：安装、首次启动、播放、退出和卸载。
-- Linux x64：CI 构建和自动冒烟，不要求本阶段提供实机证据。
+- Linux x64：质量、打包和实机证据延期，不作为本阶段硬门。
 
 ### 6.2 服务端
 
@@ -142,10 +142,10 @@ Internal Alpha；对应验收项保持未勾选并明确标记为 deferred。
 
 1. 全量质量门通过。
 2. 播放启动备用线路重建计划的专用自动化通过。
-3. 三平台 CI 产物与 SHA-256 完整。
-4. macOS 与 Windows 的 Emby 实机闭环通过。
+3. Windows 与 macOS Apple Silicon CI 产物与 SHA-256 完整。
+4. macOS Apple Silicon 与 Windows 的 Emby 实机闭环通过。
 5. 真实 mpv 样片冒烟通过或对硬件限制有明确记录。
 6. 凭证泄漏扫描为零发现。
 
-Jellyfin live 容器与实机闭环、macOS Intel CI/实机证据、签名、公证、
-公开许可证声明和普通用户分发继续作为后续门禁，不阻塞本次内部 Alpha。
+Jellyfin live 容器与实机闭环、Linux quality/package、macOS Intel CI/实机证据、
+签名、公证、公开许可证声明和普通用户分发继续作为后续门禁，不阻塞本次内部 Alpha。

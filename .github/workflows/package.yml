@@ -17,9 +17,6 @@ jobs:
           - os: macos-15
             target: aarch64-apple-darwin
             args: --bundles app,dmg
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            args: --bundles appimage,deb
     runs-on: ${{ matrix.os }}
     env:
       RUST_TARGET: ${{ matrix.target }}

@@ -6,7 +6,7 @@
 
 **Architecture:** 保持现有分层与稳定契约：`packages/core` 只修复既有播放启动错误分类并承载线路重试，`apps/desktop/src-tauri` 继续只负责独立 mpv 进程、受限 JSON IPC 与稳定原生错误，集成测试和 GitHub Actions 负责生成自动化证据。`docs/release/v0.1-acceptance.md` 是唯一验收记录；自动化、CI 产物、实机结果与明确环境限制都只汇总到该文件。
 
-**Tech Stack:** pnpm 10.15.0、Node.js 22、TypeScript 5.9、Vitest 4、Testcontainers 11、Rust stable、Tokio、Tauri 2、独立 mpv 0.41 系列 JSON IPC、Playwright、GitHub Actions、Windows x64、macOS Apple Silicon、Linux x64；macOS Intel CI 延期。
+**Tech Stack:** pnpm 10.15.0、Node.js 22、TypeScript 5.9、Vitest 4、Testcontainers 11、Rust stable、Tokio、Tauri 2、独立 mpv 0.41 系列 JSON IPC、Playwright、GitHub Actions、Windows x64、macOS Apple Silicon；Linux x64 与 macOS Intel CI 延期。
 
 ## Global Constraints
 
@@ -29,11 +29,11 @@
 - mpv/IPC 失败继续使用既有 `PlayerUnavailable` / `PlaybackFailed` 稳定错误。
 - 所有行为修复都遵循失败测试 → 最小实现 → 绿灯测试；不能用人工点击代替自动化证据。
 - Internal Alpha 产物必须明确标注“未签名或未公证”“仅供内部技术验证”“可能触发操作系统安全警告”“不面向普通用户公开分发”。
-- Linux 只要求 CI 构建与自动冒烟；macOS 与 Windows 必须补充实机安装和播放证据。
+- Linux quality/package 延期，不作为本阶段硬门；macOS Apple Silicon 与 Windows 必须补充实机安装和播放证据。
 - `docs/release/v0.1-acceptance.md` 是唯一验收记录；不要创建第二份结果表或把私人测试数据写入仓库。
-- 只有全量质量门、专用播放换线、三平台产物与 SHA-256、macOS/Windows Emby 实机闭环、真实 mpv 样片和零凭证泄漏全部满足后，才能标记 Internal Alpha 通过。
+- 只有全量质量门、专用播放换线、Windows/Apple Silicon 产物与 SHA-256、macOS/Windows Emby 实机闭环、真实 mpv 样片和零凭证泄漏全部满足后，才能标记 Internal Alpha 通过。
 - Jellyfin 适配器与固定响应测试继续保留；live 容器和实机闭环延期，不得单独阻塞质量矩阵或本次 Internal Alpha。
-- `macos-13` / `x86_64-apple-darwin` 因 runner 环境不可用而延期；质量与打包硬门只包含 Windows x64、macOS Apple Silicon、Linux x64，且 ARM 结果不得替代 Intel 证据。
+- `macos-13` / `x86_64-apple-darwin` 因 runner 环境不可用而延期；Ubuntu / `x86_64-unknown-linux-gnu` 因 package qualify 挂起而延期。质量与打包硬门只包含 Windows x64 与 macOS Apple Silicon；ARM 结果不得替代 Intel 证据，也不得把 Linux 未完成 job 记为通过。
 - 每个任务结束前运行该任务的精确测试与 `git diff --check`；每任务的 commit 命令只在执行本计划时使用，本计划编写阶段不提交。
 
 ---
@@ -50,7 +50,7 @@
 - quality workflow 当前唯一运行是失败的 [run 32022148857](https://github.com/yangshulin-g/LumaRoute/actions/runs/32022148857)：四个平台的 `pnpm test:rust` 都在 Tauri build script 阶段因缺少目标后缀 mpv sidecar 失败。
 - package workflow 已启用但没有历史运行；不得把 workflow 文件存在视为产物已生成。
 - `package.yml` 当前只执行 installed/version 与 sidecar `--version` 冒烟，没有在每个原生 runner 上执行 H.264/H.265/AV1 解码与完整 JSON IPC 冒烟。
-- Windows x64 与 Linux x64 的 `mpv.lock.json` 状态为 `archive-sealed`；Apple Silicon 为 `qualified`。macOS Intel 保持 `archive-sealed` 且延期，不能用 ARM 结果或本阶段 CI 直接改为通过。
+- Windows x64 与 Apple Silicon 的 `mpv.lock.json` 状态仅能由对应原生 package 日志改为 `qualified`。Linux 与 macOS Intel 保持 `archive-sealed` 且延期，不能用 ARM 结果或未完成 Ubuntu job 直接改为通过。
 - `tauri.conf.json` 引用了 `icons/32x32.png`、`icons/128x128.png`、`icons/henry.w@example.net`、`icons/icon.icns`、`icons/icon.ico`，而当前 icons 目录只发现两个 Android XML；打包 job 必须实际运行以确认或暴露该缺口，不在计划阶段假定可打包。
 
 ## 精确文件清单
@@ -779,7 +779,7 @@ git commit -m "test: qualify real mpv for internal alpha"
 
 ## Task 4: 收紧三平台打包、校验和与 Alpha 标记
 
-**可独立验收：** Windows x64 生成 MSI/NSIS EXE，macOS Apple Silicon 生成 DMG，Linux x64 生成 AppImage/deb；五个安装包各有可验证 SHA-256 sibling，三个 active runner 都先执行真实 mpv qualification 和自动启动冒烟，产物包含明确 Internal Alpha 限制标记。macOS Intel 打包延期。
+**可独立验收：** Windows x64 生成 MSI/NSIS EXE，macOS Apple Silicon 生成 DMG；三个安装包各有可验证 SHA-256 sibling，两个 active runner 都先执行真实 mpv qualification 和自动启动冒烟，产物包含明确 Internal Alpha 限制标记。Linux 与 macOS Intel 打包延期。
 
 **Files:**
 - Modify: `scripts/package-checksums.mjs`
@@ -944,7 +944,7 @@ git commit -m "build: enforce internal alpha package evidence"
 
 ## Task 5: 跑通质量与打包 CI 并记录自动化证据
 
-**可独立验收：** 当前提交的三平台 quality matrix 在不要求 live Jellyfin 或 macOS Intel 的前提下全绿；package matrix 三个 job 全绿并上传五个约定安装包、checksum 和 marker；Windows、Apple Silicon、Linux mpv 目标有原生 runner 的真实 qualification 日志。Intel 保持未证明。
+**可独立验收：** 当前提交的双平台 quality matrix 在不要求 live Jellyfin、Linux 或 macOS Intel 的前提下全绿；package matrix 两个 job 全绿并上传三个约定安装包、checksum 和 marker；Windows 与 Apple Silicon mpv 目标有原生 runner 的真实 qualification 日志。Linux 与 Intel 保持未证明。
 
 **Files:**
 - Modify: `.github/workflows/quality.yml`
@@ -978,7 +978,7 @@ gh workflow run quality.yml --ref "$(git branch --show-current)"
 gh run list --workflow quality.yml --branch "$(git branch --show-current)" --limit 1
 ```
 
-Expected: 最新 run 对应 `git rev-parse HEAD`；Windows、macOS Apple Silicon、Ubuntu 三个 job 全绿；三个 active 平台都在 Rust 测试前成功 fetch 对应 sidecar；quality 不运行 deferred live Jellyfin 或 macOS Intel。
+Expected: 最新 run 对应 `git rev-parse HEAD`；Windows、macOS Apple Silicon 两个 job 全绿；两个 active 平台都在 Rust 测试前成功 fetch 对应 sidecar；quality 不运行 deferred live Jellyfin、Linux 或 macOS Intel。
 
 若 run 失败：
 
@@ -995,12 +995,11 @@ gh workflow run package.yml --ref "$(git branch --show-current)"
 gh run list --workflow package.yml --branch "$(git branch --show-current)" --limit 1
 ```
 
-Expected: 三个 matrix job 全绿：
+Expected: 两个 matrix job 全绿：
 
 ```text
 x86_64-pc-windows-msvc: .msi + -setup.exe + each .sha256 + marker
 aarch64-apple-darwin: .dmg + .sha256 + marker
-x86_64-unknown-linux-gnu: .AppImage + .deb + each .sha256 + marker
 ```
 
 下载到临时目录并离线复核：
@@ -1032,7 +1031,7 @@ print(f'PASS verified {len(artifacts)} package checksum(s)')
 PY
 ```
 
-Expected: `PASS verified 5 package checksum(s)`（Windows 2、Apple Silicon macOS 1、Linux 2）。macOS Intel DMG 不属于本阶段硬门。控制器消息中的“4”与列出的五个安装包矛盾；以实际安装包及逐文件 SHA-256 校验结果为准，不得漏验或伪造计数。
+Expected: `PASS verified 3 package checksum(s)`（Windows 2、Apple Silicon macOS 1）。Linux AppImage/deb 与 macOS Intel DMG 不属于本阶段硬门。以实际安装包及逐文件 SHA-256 校验结果为准，不得漏验或伪造计数。
 
 - [ ] **Step 4: 只从 CI 实测更新 mpv 资格状态**
 
@@ -1040,7 +1039,7 @@ Expected: `PASS verified 5 package checksum(s)`（Windows 2、Apple Silicon macO
 
 Run: `node scripts/verify-mpv.mjs manifest`
 
-Expected: `PASS mpv.lock.json manifest`；三个 active target 都有可追溯原生 qualification run。`x86_64-apple-darwin` 保持现有未证明状态，不改成 `qualified`。
+Expected: `PASS mpv.lock.json manifest`；Windows 与 Apple Silicon 有可追溯原生 qualification run。`x86_64-unknown-linux-gnu` 与 `x86_64-apple-darwin` 保持现有未证明状态，不改成 `qualified`。
 
 - [ ] **Step 5: 重写自动化验收区为 Internal Alpha 证据**
 
@@ -1057,10 +1056,10 @@ Expected: `PASS mpv.lock.json manifest`；三个 active target 都有可追溯�
 - [ ] Temporary Jellyfin live contract is deferred.
   - Evidence: not required for this Emby-first Internal Alpha.
   - Limitations: live container and real-system validation deferred; adapter and fixed-fixture tests remain.
-- [x] Real mpv decodes H.264/H.265/AV1 and completes JSON IPC controls/events on all package runners.
+- [x] Real mpv decodes H.264/H.265/AV1 and completes JSON IPC controls/events on active package runners.
   - Evidence: installed qualification logs; use the exact successful package run URL.
-  - Limitations: software decode is allowed; high-bitrate hardware performance is not claimed.
-- [x] Windows x64, macOS Apple Silicon, and Linux x64 artifacts have verified SHA-256 siblings.
+  - Limitations: software decode is allowed; high-bitrate hardware performance is not claimed; Linux and Intel remain unproven.
+- [x] Windows x64 and macOS Apple Silicon artifacts have verified SHA-256 siblings.
   - Evidence: package artifact download and checksum verification; use the exact successful package run URL.
   - Limitations: unsigned/unnotarized Internal Alpha only.
 - [x] Credential leakage scan returns zero findings.
@@ -1201,7 +1200,7 @@ git commit -m "docs: record internal alpha system validation"
 
 ## Task 7: 执行最终 Alpha 门并封存验收结论
 
-**可独立验收：** 当前 HEAD 的三平台本地/CI 质量门、package CI、artifact checksum、macOS Apple Silicon/Windows 两个 Emby 实机组合、真实 mpv 和泄漏扫描均有可追溯证据；Jellyfin live/实机与 macOS Intel 项明确延期。只有当前硬门全部通过时文档才写 `Internal Alpha: PASS`。
+**可独立验收：** 当前 HEAD 的双平台本地/CI 质量门、package CI、artifact checksum、macOS Apple Silicon/Windows 两个 Emby 实机组合、真实 mpv 和泄漏扫描均有可追溯证据；Jellyfin live/实机、Linux quality/package 与 macOS Intel 项明确延期。只有当前硬门全部通过时文档才写 `Internal Alpha: PASS`。
 
 **Files:**
 - Modify: `docs/release/v0.1-acceptance.md`
@@ -1243,9 +1242,9 @@ Expected: 两个 workflow 都是 `status=completed`、`conclusion=success` 且 `
 ```text
 1. Full quality gate: successful run URL and tested code SHA present.
 2. Playback startup backup-plan integration: dedicated test present and green.
-3. Packages: five required installers and five valid checksum siblings present.
+3. Packages: three required installers and three valid checksum siblings present.
 4. Real systems: macOS Apple Silicon/Windows × Emby two combinations passed.
-5. Real mpv: H.264/H.265/AV1 + JSON IPC evidence for all three active package targets, or a documented hardware limitation that does not invalidate software decode.
+5. Real mpv: H.264/H.265/AV1 + JSON IPC evidence for both active package targets, or a documented hardware limitation that does not invalidate software decode.
 6. Credential leakage: zero findings in current quality run and acceptance document scan.
 ```
 
@@ -1266,7 +1265,7 @@ Expected: 六项全部有证据。任一缺失则最终结论必须是 `BLOCKED`
 
 **Automation:** exact successful quality and package run URLs
 
-**System evidence:** macOS Apple Silicon/Windows × Emby entries above; Jellyfin and macOS Intel deferred
+**System evidence:** macOS Apple Silicon/Windows × Emby entries above; Jellyfin, Linux, and macOS Intel deferred
 
 **Deferred public-release gates:** signing, notarization, public license declaration, automatic updates, and public GitHub Release.
 ```
@@ -1305,17 +1304,17 @@ git commit -m "docs: close the v0.1 internal alpha gate"
 
 ## Plan Author Self-Review Record
 
-- [x] Spec §1：Tasks 1–7 分别覆盖 Emby-first 闭环、真实 mpv、三平台产物、专用播放启动换线和唯一验收记录；Jellyfin live 证据延期。
+- [x] Spec §1：Tasks 1–7 分别覆盖 Emby-first 闭环、真实 mpv、Windows/Apple Silicon 产物、专用播放启动换线和唯一验收记录；Jellyfin live、Linux 与 macOS Intel 证据延期。
 - [x] Spec §2：Global Constraints 与 Task 7 明确排除 v0.2 控制、播放中换线、转码、聚合、更多来源、签名、公证、更新和公开 Release。
 - [x] Spec §3：计划只修改 v0.1 测试、打包、验收和保持现有契约的缺陷；`packages/player` 不在修改清单中；最终门禁止合并 v0.2。
 - [x] Spec §4.1：Task 1 专用集成场景覆盖浏览可用后的播放前网络失败、备用线路重建/加载、备用媒体源/会话/进度上下文及全部非重试类别。
 - [x] Spec §4.2：Task 2 保留固定 Jellyfin manifest digest 与 live 契约，但从本阶段 Linux quality 硬门移除，skip 或扫描失败不阻塞 Emby-first Alpha。
 - [x] Spec §4.3：Task 3 对 H.264/H.265/AV1、启动/加载、暂停/恢复/跳转/停止、事件和敏感 header 泄漏建立 fail-closed 真实 mpv 证据。
-- [x] Spec §5：Task 4/5 精确要求 Windows MSI+NSIS、Apple Silicon macOS DMG、Linux AppImage+deb、每产物 SHA-256 和四条 Internal Alpha 警告；macOS Intel 延期。
+- [x] Spec §5：Task 4/5 精确要求 Windows MSI+NSIS、Apple Silicon macOS DMG、每产物 SHA-256 和四条 Internal Alpha 警告；Linux 与 macOS Intel 延期。
 - [x] Spec §6：Task 6 覆盖 macOS Apple Silicon、Windows x64 的两个 Emby 组合及登录/凭证、浏览详情、直放/直接串流、控制、回写、清理、卸载；Jellyfin 与 macOS Intel 组合延期。
 - [x] Spec §7：所有实现步骤只允许现有 v0.1 契约缺陷修复；Rust 使用稳定 `PlayerUnavailable` / `PlaybackFailed`；没有新增架构。
 - [x] Spec §8：Tasks 5–7 只修改 `docs/release/v0.1-acceptance.md` 作为唯一记录，每项要求 CI URL 或日期/OS/artifact/结果或明确限制。
-- [x] Internal Alpha 六项最终条件在 Task 7 一一对应，Jellyfin live/实机、macOS Intel CI/实机、签名、公证、公开许可证声明和普通用户分发明确延期且不阻塞内部 Alpha。
+- [x] Internal Alpha 六项最终条件在 Task 7 一一对应，Jellyfin live/实机、Linux quality/package、macOS Intel CI/实机、签名、公证、公开许可证声明和普通用户分发明确延期且不阻塞内部 Alpha。
 - [x] 当前仓库事实：记录了本机 Docker 不可用、Jellyfin skip、真实 sidecar 测试提前返回、quality run 失败、package 零运行、mpv 三目标仅 archive-sealed 和潜在 icon 打包阻塞；没有声称 CI/容器/mpv/package 已通过。
 - [x] 类型一致性：`PlaybackService.play`、`PlaybackPlan`、`PlayerEngine`、`NativeError`、`IntegrationApp`、`JELLYFIN_IMAGE`、`verifyInstalled` 在接口与任务中命名一致；未引入未定义的业务类型。
 - [x] 任务顺序：错误契约与专用集成 → 记录 Jellyfin 延期 → 真实 mpv → package 门 → CI 证据 → Emby 实机矩阵 → 最终判定；后续任务只消费前序产物。

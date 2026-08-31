@@ -18,7 +18,8 @@
           "sha256": "b634ab5640e258563c536e658cad87080553df6f34f62269a21d554844e58bfe"
         }
       ],
-      "qualificationStatus": "archive-sealed"
+      "qualifiedAt": "2026-08-31T04:08:02.000Z",
+      "qualificationStatus": "qualified"
     },
     "x86_64-apple-darwin": {
       "version": "0.41.0",
