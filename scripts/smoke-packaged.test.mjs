@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { expectedExtensions, requireArtifacts, validateAlphaMarker } from './smoke-packaged.mjs'
+import {
+  expectedExtensions,
+  requireArtifacts,
+  requirePackagedSidecarLayout,
+  validateAlphaMarker,
+} from './smoke-packaged.mjs'
 
 describe('packaged smoke', () => {
   it('requires the exact artifact family for each target', () => {
@@ -27,6 +32,36 @@ describe('packaged smoke', () => {
     assert.throws(
       () => validateAlphaMarker('LumaRoute development package\nThis build is intentionally UNSIGNED.'),
       /UNSIGNED OR UNNOTARIZED/,
+    )
+  })
+
+  it('rejects a macOS .app that has MacOS/mpv but no sidecar next to lib', () => {
+    assert.throws(
+      () =>
+        requirePackagedSidecarLayout(
+          [
+            'bundle/macos/LumaRoute.app/Contents/MacOS/lumaroute',
+            'bundle/macos/LumaRoute.app/Contents/MacOS/mpv',
+            'bundle/macos/LumaRoute.app/Contents/Resources/resources/bin/lib/libass.9.dylib',
+            'bundle/macos/LumaRoute.app/Contents/Resources/resources/mpv/mpv.lock.json',
+          ],
+          'aarch64-apple-darwin',
+        ),
+      /sidecar|lib|mpv/,
+    )
+  })
+
+  it('accepts a macOS .app that keeps mpv-aarch64-apple-darwin beside lib', () => {
+    assert.doesNotThrow(() =>
+      requirePackagedSidecarLayout(
+        [
+          'bundle/macos/LumaRoute.app/Contents/MacOS/lumaroute',
+          'bundle/macos/LumaRoute.app/Contents/MacOS/mpv',
+          'bundle/macos/LumaRoute.app/Contents/Resources/resources/bin/mpv-aarch64-apple-darwin',
+          'bundle/macos/LumaRoute.app/Contents/Resources/resources/bin/lib/libass.9.dylib',
+        ],
+        'aarch64-apple-darwin',
+      ),
     )
   })
 

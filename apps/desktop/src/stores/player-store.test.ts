@@ -153,8 +153,9 @@ describe('usePlayerStore', () => {
     await harness.withStore(async (store) => {
       await expect(store.play('profile-1', 'item-1')).rejects.toBeTruthy()
       expect(store.state).toBe('error')
-      expect(store.lastError).toContain('pnpm fetch:mpv')
-      expect(store.lastError).toMatch(/IPC|播放器/)
+      expect(store.lastError).not.toContain('pnpm')
+      expect(store.lastError).not.toContain('fetch:mpv')
+      expect(store.lastError).toMatch(/安装包|播放器|IPC/)
     })
   })
 })

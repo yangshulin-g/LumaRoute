@@ -26,6 +26,33 @@ export function validateAlphaMarker(text) {
   }
 }
 
+export function requirePackagedSidecarLayout(files, target) {
+  if (!String(target).includes('apple-darwin')) {
+    return
+  }
+  const normalized = files.map((file) => String(file).replaceAll('\\', '/'))
+  const appFiles = normalized.filter((file) => file.includes('.app/Contents/'))
+  if (appFiles.length === 0) {
+    return
+  }
+  const sidecarName = `mpv-${target}`
+  const sidecars = normalized.filter(
+    (file) =>
+      file.endsWith(`/Contents/MacOS/${sidecarName}`) ||
+      file.endsWith('/Contents/MacOS/mpv') ||
+      file.endsWith(`/bin/${sidecarName}`),
+  )
+  const withLib = sidecars.filter((sidecar) => {
+    const dir = sidecar.slice(0, sidecar.lastIndexOf('/'))
+    return normalized.some((file) => file.startsWith(`${dir}/lib/`))
+  })
+  if (withLib.length === 0) {
+    throw new Error(
+      `packaged macOS .app is missing ${sidecarName} beside a companion lib/ directory`,
+    )
+  }
+}
+
 export function requireArtifacts(files, target) {
   const artifacts = []
   for (const extension of expectedExtensions(target)) {
@@ -101,7 +128,9 @@ export async function smokePackaged({ target, targetDir }) {
   if (!existsSync(targetDir)) {
     throw new Error(`missing package target directory: ${targetDir}`)
   }
-  const artifacts = requireArtifacts(walk(targetDir), target)
+  const files = walk(targetDir)
+  requirePackagedSidecarLayout(files, target)
+  const artifacts = requireArtifacts(files, target)
   for (const artifact of artifacts) {
     await verifyChecksumSibling(artifact, targetDir)
     console.log(`PASS artifact present: ${artifact}`)

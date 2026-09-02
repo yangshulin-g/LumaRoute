@@ -118,33 +118,96 @@ pub fn load_minimum_version(lock_json: &str, target: &str) -> Result<String, Nat
         })
 }
 
+pub fn resolve_mpv_lock_path(resource_dir: &Path) -> PathBuf {
+    let direct = resource_dir.join("mpv").join("mpv.lock.json");
+    if direct.is_file() {
+        return direct;
+    }
+    resource_dir
+        .join("resources")
+        .join("mpv")
+        .join("mpv.lock.json")
+}
+
+fn sidecar_bare_name(target: &str) -> &'static str {
+    if target.contains("windows") {
+        "mpv.exe"
+    } else {
+        "mpv"
+    }
+}
+
+fn has_companion_lib(executable: &Path) -> bool {
+    executable
+        .parent()
+        .map(|parent| parent.join("lib").is_dir())
+        .unwrap_or(false)
+}
+
+fn push_existing_file(out: &mut Vec<PathBuf>, path: PathBuf) {
+    if path.is_file() {
+        out.push(path);
+    }
+}
+
+fn sidecar_search_dirs(resource_dir: &Path, executable_dir: Option<&Path>) -> Vec<PathBuf> {
+    let mut dirs = vec![
+        resource_dir.join("bin"),
+        resource_dir.join("resources").join("bin"),
+        resource_dir.to_path_buf(),
+    ];
+    if resource_dir.file_name().and_then(|name| name.to_str()) == Some("Resources") {
+        if let Some(contents) = resource_dir.parent() {
+            dirs.push(contents.join("MacOS"));
+        }
+    }
+    if resource_dir.file_name().and_then(|name| name.to_str()) == Some("resources") {
+        if let Some(parent) = resource_dir.parent() {
+            dirs.push(parent.to_path_buf());
+        }
+    }
+    if let Some(exe_dir) = executable_dir {
+        dirs.push(exe_dir.to_path_buf());
+    }
+    dirs
+}
+
+fn collect_sidecar_candidates(
+    resource_dir: &Path,
+    executable_dir: Option<&Path>,
+    target: &str,
+) -> Vec<PathBuf> {
+    let named = sidecar_file_name(target);
+    let bare = sidecar_bare_name(target);
+    let mut files = Vec::new();
+    for dir in sidecar_search_dirs(resource_dir, executable_dir) {
+        push_existing_file(&mut files, dir.join(&named));
+        push_existing_file(&mut files, dir.join(bare));
+        push_existing_file(&mut files, dir.join("mpv").join(bare));
+    }
+    files
+}
+
 pub fn resolve_packaged_mpv(
     resource_dir: &Path,
     target: &str,
     linux_deb_system_mpv: bool,
 ) -> Result<PathBuf, NativeError> {
-    let sidecar = resource_dir.join("bin").join(sidecar_file_name(target));
-    if sidecar.is_file() {
-        return Ok(sidecar);
-    }
+    resolve_packaged_mpv_from(resource_dir, None, target, linux_deb_system_mpv)
+}
 
-    let external_bin = resource_dir.join(if target.contains("windows") {
-        "mpv.exe"
-    } else {
-        "mpv"
-    });
-    if external_bin.is_file() {
-        return Ok(external_bin);
+pub fn resolve_packaged_mpv_from(
+    resource_dir: &Path,
+    executable_dir: Option<&Path>,
+    target: &str,
+    linux_deb_system_mpv: bool,
+) -> Result<PathBuf, NativeError> {
+    let candidates = collect_sidecar_candidates(resource_dir, executable_dir, target);
+    if let Some(with_lib) = candidates.iter().find(|path| has_companion_lib(path)) {
+        return Ok(with_lib.clone());
     }
-
-    // Legacy layout used by some resource bundles.
-    let nested = if target.contains("windows") {
-        resource_dir.join("mpv").join("mpv.exe")
-    } else {
-        resource_dir.join("mpv").join("mpv")
-    };
-    if nested.exists() {
-        return Ok(nested);
+    if let Some(first) = candidates.into_iter().next() {
+        return Ok(first);
     }
 
     if linux_deb_system_mpv {
@@ -209,7 +272,7 @@ pub async fn spawn_mpv(
         let message = error.to_string();
         if error.kind() == std::io::ErrorKind::NotFound {
             NativeError::player_unavailable(format!(
-                "未找到 mpv 可执行文件。请在仓库根目录运行 pnpm fetch:mpv 后重试。（{message}）"
+                "未找到 mpv 播放器。请重新安装当前 Internal Alpha 安装包。（{message}）"
             ))
         } else {
             NativeError::player_unavailable(format!("无法启动 mpv 进程：{message}"))
@@ -244,19 +307,16 @@ pub fn format_mpv_early_exit(exit_code: Option<i32>, stderr: &str) -> String {
         format!(" 详情：{truncated}。")
     };
     format!(
-        "播放器进程启动后立即退出（退出码 {code}）。{hint}若尚未安装 sidecar，请在仓库根目录运行 pnpm fetch:mpv。"
+        "播放器进程启动后立即退出（退出码 {code}）。{hint}请重新安装当前 Internal Alpha 安装包。"
     )
 }
 
 pub fn format_mpv_socket_timeout() -> String {
-    "等待播放器 IPC 套接字超时。请确认 mpv 可正常启动，或在仓库根目录重新运行 pnpm fetch:mpv。"
-        .to_string()
+    "等待播放器 IPC 套接字超时。请重新安装当前 Internal Alpha 安装包。".to_string()
 }
 
-pub fn format_mpv_missing_sidecar(target: &str) -> String {
-    format!(
-        "未找到打包的 mpv 播放器（目标 {target}）。请在仓库根目录运行 pnpm fetch:mpv 后重试。"
-    )
+pub fn format_mpv_missing_sidecar(_target: &str) -> String {
+    "此安装未包含可用的 mpv 播放器。请重新安装当前 Internal Alpha 安装包。".to_string()
 }
 
 #[cfg(test)]
@@ -291,16 +351,39 @@ mod tests {
     fn early_exit_and_missing_sidecar_messages_are_chinese_and_actionable() {
         let early = format_mpv_early_exit(Some(1), "dyld: Library not loaded");
         assert!(early.contains("立即退出"));
-        assert!(early.contains("pnpm fetch:mpv"));
         assert!(early.contains("Library not loaded"));
+        assert!(
+            !early.contains("pnpm"),
+            "packaged users must not be told to run repo commands: {early}"
+        );
 
         let timeout = format_mpv_socket_timeout();
-        assert!(timeout.contains("IPC"));
-        assert!(timeout.contains("pnpm fetch:mpv"));
+        assert!(timeout.contains("IPC") || timeout.contains("播放器"));
+        assert!(
+            !timeout.contains("pnpm"),
+            "packaged users must not be told to run repo commands: {timeout}"
+        );
 
         let missing = format_mpv_missing_sidecar("aarch64-apple-darwin");
-        assert!(missing.contains("未找到"));
-        assert!(missing.contains("pnpm fetch:mpv"));
+        assert!(missing.contains("未找到") || missing.contains("安装"));
+        assert!(
+            missing.contains("Internal Alpha") || missing.contains("安装包"),
+            "packaged missing copy must be Internal Alpha language: {missing}"
+        );
+        assert!(!missing.contains("pnpm"));
+        assert!(!missing.contains("fetch:mpv"));
+        assert!(!missing.contains("仓库"));
+    }
+
+    #[test]
+    fn packaged_missing_sidecar_message_is_user_facing_not_a_repo_command() {
+        let missing = format_mpv_missing_sidecar("aarch64-apple-darwin");
+        assert!(
+            missing.contains("安装包") || missing.contains("此安装"),
+            "{missing}"
+        );
+        assert!(!missing.contains("pnpm fetch:mpv"));
+        assert!(!missing.contains("pnpm"));
     }
 
     #[test]
@@ -347,12 +430,72 @@ mod tests {
 
         fs::remove_file(&sidecar).unwrap();
         let missing = resolve_packaged_mpv(&root, target, false).unwrap_err();
-        assert!(missing.message().contains("pnpm fetch:mpv"));
-        assert!(missing.message().contains("未找到"));
+        assert!(missing.message().contains("安装包") || missing.message().contains("未找到"));
+        assert!(
+            !missing.message().contains("pnpm"),
+            "packaged lookup must not mention pnpm: {}",
+            missing.message()
+        );
 
         let deb = resolve_packaged_mpv(&root, "x86_64-unknown-linux-gnu", true);
         // May succeed only when /usr/bin/mpv exists on the runner.
         let _ = deb;
+    }
+
+    #[test]
+    fn resolves_nested_tauri_resources_bin_sidecar_beside_companion_lib() {
+        let root = tempfile_dir();
+        let bin = root.join("resources").join("bin");
+        fs::create_dir_all(bin.join("lib")).unwrap();
+        let target = "aarch64-apple-darwin";
+        let sidecar = bin.join(sidecar_file_name(target));
+        fs::write(&sidecar, b"fake").unwrap();
+        fs::write(bin.join("lib").join("libass.9.dylib"), b"fake").unwrap();
+
+        let resolved = resolve_packaged_mpv(&root, target, false).unwrap();
+        assert_eq!(resolved, sidecar);
+    }
+
+    #[test]
+    fn prefers_resources_bin_sidecar_with_lib_over_macos_mpv_without_lib() {
+        let app = tempfile_dir();
+        let macos = app.join("Contents").join("MacOS");
+        let resources = app.join("Contents").join("Resources");
+        let nested_bin = resources.join("resources").join("bin");
+        fs::create_dir_all(&macos).unwrap();
+        fs::create_dir_all(nested_bin.join("lib")).unwrap();
+        fs::write(macos.join("mpv"), b"external-bin-without-lib").unwrap();
+        let sidecar = nested_bin.join(sidecar_file_name("aarch64-apple-darwin"));
+        fs::write(&sidecar, b"bundled-with-lib").unwrap();
+        fs::write(nested_bin.join("lib").join("libass.9.dylib"), b"fake").unwrap();
+
+        let resolved = resolve_packaged_mpv(&resources, "aarch64-apple-darwin", false).unwrap();
+        assert_eq!(resolved, sidecar);
+    }
+
+    #[test]
+    fn resolves_bare_mpv_in_macos_contents_when_companion_lib_present() {
+        let app = tempfile_dir();
+        let macos = app.join("Contents").join("MacOS");
+        let resources = app.join("Contents").join("Resources");
+        fs::create_dir_all(macos.join("lib")).unwrap();
+        fs::create_dir_all(&resources).unwrap();
+        let sidecar = macos.join("mpv");
+        fs::write(&sidecar, b"fake").unwrap();
+        fs::write(macos.join("lib").join("libass.9.dylib"), b"fake").unwrap();
+
+        let resolved = resolve_packaged_mpv(&resources, "aarch64-apple-darwin", false).unwrap();
+        assert_eq!(resolved, sidecar);
+    }
+
+    #[test]
+    fn resolves_mpv_lock_under_nested_tauri_resources_prefix() {
+        let root = tempfile_dir();
+        let nested = root.join("resources").join("mpv");
+        fs::create_dir_all(&nested).unwrap();
+        let lock = nested.join("mpv.lock.json");
+        fs::write(&lock, b"{}").unwrap();
+        assert_eq!(resolve_mpv_lock_path(&root), lock);
     }
 
     #[test]

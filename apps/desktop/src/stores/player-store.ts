@@ -20,13 +20,13 @@ function rawPlaybackError(error: unknown): string {
 /** Map leftover English native errors to actionable Chinese copy. */
 export function localizePlayerError(message: string): string {
   if (/mpv ipc socket did not appear|mpv named pipe did not appear/i.test(message)) {
-    return '等待播放器 IPC 套接字超时。请确认已运行 pnpm fetch:mpv，且 mpv 可正常启动后重试。'
+    return '等待播放器启动超时。请重新安装当前 Internal Alpha 安装包。'
   }
   if (/packaged mpv sidecar missing/i.test(message)) {
-    return '未找到 mpv 播放器。请在仓库根目录运行 pnpm fetch:mpv 后重试。'
+    return '此安装未包含可用的 mpv 播放器。请重新安装当前 Internal Alpha 安装包。'
   }
   if (/unable to parse mpv --version|mpv --version failed/i.test(message)) {
-    return '无法识别 mpv 版本。请重新运行 pnpm fetch:mpv 后重试。'
+    return '无法识别播放器版本。请重新安装当前 Internal Alpha 安装包。'
   }
   if (message === 'Playback failed') {
     return '播放失败'

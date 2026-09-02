@@ -226,10 +226,10 @@ mod tests {
     #[test]
     fn preserves_chinese_player_guidance_while_redacting_secrets() {
         let error = NativeError::player_unavailable(
-            "未找到打包的 mpv 播放器。请运行 pnpm fetch:mpv。Authorization: Bearer secret-token",
+            "此安装未包含可用的 mpv 播放器。请重新安装当前 Internal Alpha 安装包。Authorization: Bearer secret-token",
         );
-        assert!(error.message().contains("未找到打包的 mpv 播放器"));
-        assert!(error.message().contains("pnpm fetch:mpv"));
+        assert!(error.message().contains("此安装未包含可用的 mpv 播放器"));
+        assert!(error.message().contains("Internal Alpha"));
         assert!(!error.message().contains("secret-token"));
         assert!(error.message().contains("[REDACTED]"));
     }

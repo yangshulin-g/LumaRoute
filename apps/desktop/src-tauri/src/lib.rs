@@ -11,7 +11,8 @@ use tauri::{Emitter, Manager};
 
 use crate::error::NativeError;
 use crate::mpv::process::{
-    ensure_mpv_version, load_minimum_version, resolve_packaged_mpv, rust_target_triple,
+    ensure_mpv_version, load_minimum_version, resolve_mpv_lock_path, resolve_packaged_mpv_from,
+    rust_target_triple,
 };
 
 pub fn run() {
@@ -84,8 +85,12 @@ fn resolve_mpv_executable(app: &tauri::App) -> Result<PathBuf, NativeError> {
             .map(|value| value.eq_ignore_ascii_case("deb"))
             .unwrap_or(false);
 
-    let executable = resolve_packaged_mpv(&resource_dir, target, linux_deb)?;
-    let lock_path = resource_dir.join("mpv").join("mpv.lock.json");
+    let executable_dir = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(PathBuf::from));
+    let executable =
+        resolve_packaged_mpv_from(&resource_dir, executable_dir.as_deref(), target, linux_deb)?;
+    let lock_path = resolve_mpv_lock_path(&resource_dir);
     let lock_json = std::fs::read_to_string(&lock_path).map_err(|error| {
         NativeError::player_unavailable(format!(
             "failed to read packaged mpv.lock.json at {}: {error}",
