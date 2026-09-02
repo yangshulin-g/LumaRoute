@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process'
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, dirname, join, relative, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   MPV_LOCK_PATH,
-  companionRuntimeFiles,
   currentRustTarget,
   downloadToFile,
   extractArchive,
   findExecutable,
+  installSidecarRuntime,
   loadManifest,
   sha256File,
   sidecarPathForTarget,
@@ -30,14 +30,6 @@ function parseArgs(argv) {
     }
   }
   return args
-}
-
-function copyPreservingRelative(sourceFile, sourceRoot, destinationRoot) {
-  const rel = relative(sourceRoot, sourceFile)
-  const dest = join(destinationRoot, rel)
-  mkdirSync(dirname(dest), { recursive: true })
-  copyFileSync(sourceFile, dest)
-  return dest
 }
 
 async function main() {
@@ -75,25 +67,15 @@ async function main() {
     }
 
     const sidecar = sidecarPathForTarget(target, preferred)
-    mkdirSync(dirname(sidecar), { recursive: true })
-    copyFileSync(executable, sidecar)
-    if (!sidecar.endsWith('.exe')) {
-      try {
-        chmodSync(sidecar, 0o755)
-      } catch {
-        // ignore
-      }
-    }
-
-    const runtimeRoot = dirname(sidecar)
-    for (const companion of companionRuntimeFiles(executable)) {
-      copyPreservingRelative(companion, dirname(executable), runtimeRoot)
-    }
+    installSidecarRuntime({ executable, sidecar, target })
 
     if (target.includes('apple-darwin')) {
       // The upstream binary is signed as part of mpv.app and its signature
       // becomes invalid when Tauri extracts it as a standalone sidecar.
-      execFileSync('codesign', ['--force', '--sign', '-', sidecar], { stdio: 'inherit' })
+      const snapshotSidecar = join(dirname(sidecar), target, basename(sidecar))
+      for (const binary of [sidecar, snapshotSidecar]) {
+        execFileSync('codesign', ['--force', '--sign', '-', binary], { stdio: 'inherit' })
+      }
     }
 
     for (const license of build.licenses) {

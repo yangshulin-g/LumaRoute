@@ -2,6 +2,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { execFileSync, spawnSync } from 'node:child_process'
 import {
+  chmodSync,
   copyFileSync,
   createReadStream,
   existsSync,
@@ -248,6 +249,59 @@ export function companionRuntimeFiles(executablePath) {
     if (/\.(dll|dylib|so(?:\.\d+)*)$/i.test(name)) files.push(path)
   }
   return files
+}
+
+function copyPreservingRelative(sourceFile, sourceRoot, destinationRoot) {
+  const rel = relative(sourceRoot, sourceFile)
+  const dest = join(destinationRoot, rel)
+  mkdirSync(dirname(dest), { recursive: true })
+  copyFileSync(sourceFile, dest)
+  return dest
+}
+
+function copyDirectory(sourceDir, destinationDir) {
+  mkdirSync(destinationDir, { recursive: true })
+  for (const file of walkFiles(sourceDir)) {
+    copyPreservingRelative(file, sourceDir, destinationDir)
+  }
+}
+
+function markExecutable(path) {
+  if (path.endsWith('.exe')) return
+  try {
+    chmodSync(path, 0o755)
+  } catch {
+    // Windows or a filesystem that rejects chmod.
+  }
+}
+
+/**
+ * Install a target-suffixed sidecar plus a per-target lib snapshot.
+ * `bin/lib` is published from the snapshot so `@executable_path/lib` keeps working,
+ * while earlier architectures remain in `bin/<target>/lib`.
+ */
+export function installSidecarRuntime({ executable, sidecar, target }) {
+  const binDir = dirname(sidecar)
+  const snapshotRoot = join(binDir, target)
+  const snapshotSidecar = join(snapshotRoot, basename(sidecar))
+  mkdirSync(binDir, { recursive: true })
+  mkdirSync(snapshotRoot, { recursive: true })
+  copyFileSync(executable, sidecar)
+  copyFileSync(executable, snapshotSidecar)
+  markExecutable(sidecar)
+  markExecutable(snapshotSidecar)
+
+  const snapshotLib = join(snapshotRoot, 'lib')
+  rmSync(snapshotLib, { recursive: true, force: true })
+  for (const companion of companionRuntimeFiles(executable)) {
+    copyPreservingRelative(companion, dirname(executable), snapshotRoot)
+  }
+
+  const publishedLib = join(binDir, 'lib')
+  rmSync(publishedLib, { recursive: true, force: true })
+  if (existsSync(snapshotLib)) {
+    copyDirectory(snapshotLib, publishedLib)
+  }
 }
 
 function discoverLicenseFiles(extractedRoot) {

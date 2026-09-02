@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url'
 import {
   connectIpcWhenReady,
   createIpcEndpoint,
+  installSidecarRuntime,
   loadManifest,
   openIpc,
   runIpcSmokeCommands,
@@ -138,6 +139,53 @@ describe('mpv manifest', () => {
       }
     }
     assert.ok(seen.size >= 2)
+  })
+})
+
+describe('sidecar companion runtime', () => {
+  it('keeps per-target lib snapshots so a later fetch does not clobber the first arch', () => {
+    const bin = mkdtempSync(join(tmpdir(), 'lr-mpv-runtime-'))
+    const armExtract = mkdtempSync(join(tmpdir(), 'lr-mpv-arm-'))
+    const intelExtract = mkdtempSync(join(tmpdir(), 'lr-mpv-intel-'))
+    try {
+      mkdirSync(join(armExtract, 'lib'))
+      mkdirSync(join(intelExtract, 'lib'))
+      writeFileSync(join(armExtract, 'mpv'), 'arm-mpv')
+      writeFileSync(join(armExtract, 'lib', 'libass.9.dylib'), 'arm64-lib')
+      writeFileSync(join(intelExtract, 'mpv'), 'intel-mpv')
+      writeFileSync(join(intelExtract, 'lib', 'libass.9.dylib'), 'x86_64-lib')
+
+      const armSidecar = join(bin, 'mpv-aarch64-apple-darwin')
+      const intelSidecar = join(bin, 'mpv-x86_64-apple-darwin')
+      installSidecarRuntime({
+        executable: join(armExtract, 'mpv'),
+        sidecar: armSidecar,
+        target: 'aarch64-apple-darwin',
+      })
+      installSidecarRuntime({
+        executable: join(intelExtract, 'mpv'),
+        sidecar: intelSidecar,
+        target: 'x86_64-apple-darwin',
+      })
+
+      assert.equal(
+        readFileSync(join(bin, 'aarch64-apple-darwin', 'lib', 'libass.9.dylib'), 'utf8'),
+        'arm64-lib',
+      )
+      assert.equal(
+        readFileSync(join(bin, 'x86_64-apple-darwin', 'lib', 'libass.9.dylib'), 'utf8'),
+        'x86_64-lib',
+      )
+      assert.equal(readFileSync(join(bin, 'lib', 'libass.9.dylib'), 'utf8'), 'x86_64-lib')
+      assert.equal(
+        readFileSync(join(bin, 'aarch64-apple-darwin', 'mpv-aarch64-apple-darwin'), 'utf8'),
+        'arm-mpv',
+      )
+    } finally {
+      rmSync(bin, { recursive: true, force: true })
+      rmSync(armExtract, { recursive: true, force: true })
+      rmSync(intelExtract, { recursive: true, force: true })
+    }
   })
 })
 

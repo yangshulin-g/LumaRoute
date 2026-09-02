@@ -150,8 +150,14 @@ fn push_existing_file(out: &mut Vec<PathBuf>, path: PathBuf) {
     }
 }
 
-fn sidecar_search_dirs(resource_dir: &Path, executable_dir: Option<&Path>) -> Vec<PathBuf> {
+fn sidecar_search_dirs(
+    resource_dir: &Path,
+    executable_dir: Option<&Path>,
+    target: &str,
+) -> Vec<PathBuf> {
     let mut dirs = vec![
+        resource_dir.join("bin").join(target),
+        resource_dir.join("resources").join("bin").join(target),
         resource_dir.join("bin"),
         resource_dir.join("resources").join("bin"),
         resource_dir.to_path_buf(),
@@ -180,7 +186,7 @@ fn collect_sidecar_candidates(
     let named = sidecar_file_name(target);
     let bare = sidecar_bare_name(target);
     let mut files = Vec::new();
-    for dir in sidecar_search_dirs(resource_dir, executable_dir) {
+    for dir in sidecar_search_dirs(resource_dir, executable_dir, target) {
         push_existing_file(&mut files, dir.join(&named));
         push_existing_file(&mut files, dir.join(bare));
         push_existing_file(&mut files, dir.join("mpv").join(bare));
@@ -471,6 +477,24 @@ mod tests {
 
         let resolved = resolve_packaged_mpv(&resources, "aarch64-apple-darwin", false).unwrap();
         assert_eq!(resolved, sidecar);
+    }
+
+    #[test]
+    fn prefers_target_runtime_sidecar_with_matching_lib_over_shared_bin_lib() {
+        let root = tempfile_dir();
+        let bin = root.join("bin");
+        let target = "aarch64-apple-darwin";
+        let shared = bin.join(sidecar_file_name(target));
+        let runtime = bin.join(target).join(sidecar_file_name(target));
+        fs::create_dir_all(bin.join("lib")).unwrap();
+        fs::create_dir_all(bin.join(target).join("lib")).unwrap();
+        fs::write(&shared, b"shared-bin-wrong-arch-lib").unwrap();
+        fs::write(bin.join("lib").join("libass.9.dylib"), b"x86_64").unwrap();
+        fs::write(&runtime, b"target-runtime-matching-lib").unwrap();
+        fs::write(bin.join(target).join("lib").join("libass.9.dylib"), b"arm64").unwrap();
+
+        let resolved = resolve_packaged_mpv(&root, target, false).unwrap();
+        assert_eq!(resolved, runtime);
     }
 
     #[test]

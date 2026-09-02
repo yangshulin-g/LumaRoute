@@ -17,6 +17,9 @@ apps/desktop/src-tauri/resources/bin/mpv.exe
 apps/desktop/src-tauri/resources/bin/mpv-*
 apps/desktop/src-tauri/resources/bin/lib/**
 !apps/desktop/src-tauri/resources/bin/lib/.gitkeep
+apps/desktop/src-tauri/resources/bin/*-apple-darwin/**
+apps/desktop/src-tauri/resources/bin/*-pc-windows-msvc/**
+apps/desktop/src-tauri/resources/bin/*-unknown-linux-gnu/**
 apps/desktop/src-tauri/resources/bin/*.dll
 
 .turbo/
