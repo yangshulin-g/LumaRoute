@@ -108,7 +108,7 @@ if (term.value.trim()) {
 
 <template>
   <section class="search-view">
-    <header>
+    <header class="view-header">
       <h1>搜索</h1>
       <label class="search-field">
         <span class="sr-only">搜索当前服务器</span>
@@ -123,18 +123,19 @@ if (term.value.trim()) {
         >
       </label>
       <p
-        class="lr-muted"
+        class="lr-muted line-note"
         data-testid="active-line"
       >
         当前线路：{{ mediaStore.activeLineId ?? '—' }}
       </p>
-      <p
-        v-if="hasTerm && mediaStore.searchResults"
-        class="result-title lr-muted"
-      >
-        搜索「{{ term.trim() }}」· {{ resultCount }} 条（当前服务器）
-      </p>
     </header>
+
+    <h2
+      v-if="hasTerm && mediaStore.searchResults"
+      class="result-title"
+    >
+      搜索「{{ term.trim() }}」· {{ resultCount }} 条（当前服务器）
+    </h2>
 
     <p
       v-if="!hasTerm"
@@ -156,39 +157,57 @@ if (term.value.trim()) {
 <style scoped>
 .search-view {
   display: grid;
-  gap: 1.1rem;
+  gap: 1.25rem;
+  width: 100%;
+  min-width: 0;
 }
 
-header {
+.view-header {
   display: grid;
   gap: 0.7rem;
   max-width: 36rem;
 }
 
+h1 {
+  margin: 0;
+  color: var(--lr-text-primary);
+  letter-spacing: -0.01em;
+}
+
 .search-field input {
-  min-height: 2.5rem;
+  width: 100%;
+  min-height: var(--lr-control-h-lg);
   border-radius: 999px;
   padding-inline: 1rem;
-  background: var(--lr-surface);
-  border: 1px solid var(--lr-border);
+  background: var(--lr-surface-card-solid);
+  border: 1px solid var(--lr-border-subtle);
   box-shadow: var(--lr-shadow);
 }
 
 .search-field input:hover:not(:disabled):not(:focus) {
-  border-color: var(--lr-border-strong);
-  background: var(--lr-surface);
+  border-color: var(--lr-border-hover);
+  background: var(--lr-surface-card-solid);
 }
 
-.empty-state,
+.line-note {
+  margin: 0;
+  font-size: var(--lr-font-sm);
+}
+
 .result-title {
   margin: 0;
+  font-size: var(--lr-font-md);
+  font-weight: 600;
+  color: var(--lr-text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .empty-state {
+  margin: 0;
   padding: 2.5rem 0.25rem;
   text-align: center;
-  border: 1px dashed var(--lr-border);
+  border: 1px dashed var(--lr-border-strong);
   border-radius: var(--lr-radius-md);
-  background: color-mix(in srgb, var(--lr-surface) 70%, transparent);
+  background: var(--lr-surface-card-solid);
 }
 </style>

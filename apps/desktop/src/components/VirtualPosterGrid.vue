@@ -5,6 +5,7 @@ import type { MediaItem } from '@lumaroute/core'
 import MediaCard from './MediaCard.vue'
 
 const COLUMN_MIN = 140
+const COLUMN_MAX_COUNT = 6
 const GAP = 16
 
 const props = withDefaults(
@@ -35,8 +36,8 @@ let loadNextRequested = false
 
 const columnCount = computed(() => {
   const width = Math.max(containerWidth.value, 1)
-  const min = props.columnMinWidth
-  return Math.max(1, Math.floor((width + GAP) / (min + GAP)))
+  const fit = Math.floor((width + GAP) / (props.columnMinWidth + GAP))
+  return Math.min(COLUMN_MAX_COUNT, Math.max(1, fit))
 })
 
 const rowCount = computed(() => {
@@ -185,8 +186,8 @@ onUnmounted(() => {
   height: min(72vh, 760px);
   overflow: auto;
   position: relative;
-  margin: 0 -0.15rem;
-  padding: 0.15rem;
+  margin: 0 -0.35rem;
+  padding: 0.5rem 0.35rem 0.35rem;
 }
 
 .poster-inner {
@@ -196,7 +197,7 @@ onUnmounted(() => {
 
 .poster-row {
   display: grid;
-  gap: 1.1rem;
+  gap: 1rem;
   align-content: start;
   padding-bottom: 0.35rem;
   box-sizing: border-box;

@@ -2,6 +2,8 @@ import { nextTick } from 'vue'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MediaItem } from '@lumaroute/core'
+import { servicesKey } from '../composition/inject-services'
+import MediaCard from './MediaCard.vue'
 import VirtualPosterGrid from './VirtualPosterGrid.vue'
 
 const movie: MediaItem = {
@@ -149,6 +151,35 @@ describe('VirtualPosterGrid', () => {
     const firstRow = wrapper.get('[data-row-index="0"]')
     expect(firstRow.attributes('style')).toMatch(/repeat\(3/)
     expect(firstRow.findAll('[data-testid="media-card"]')).toHaveLength(3)
+    wrapper.unmount()
+  })
+
+  it('caps a very wide viewport at six virtualized columns', async () => {
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+      configurable: true,
+      get: () => 2400,
+    })
+    const wrapper = mountGrid({ itemCount: 24 })
+    await nextTick()
+    await nextTick()
+    const firstRow = wrapper.get('[data-row-index="0"]')
+    expect(firstRow.attributes('style')).toMatch(/repeat\(6/)
+    expect(firstRow.findAll('[data-testid="media-card"]')).toHaveLength(6)
+    wrapper.unmount()
+  })
+
+  it('renders only media facts that exist on MediaItem', () => {
+    const wrapper = mount(MediaCard, {
+      props: { item: movie, profileId: 'profile-1' },
+      global: {
+        stubs: { RouterLink: { template: '<a><slot /></a>' } },
+        provide: { [servicesKey as symbol]: { images: { load: vi.fn(), release: vi.fn() } } },
+      },
+    })
+    expect(wrapper.text()).toContain('2016')
+    expect(wrapper.text()).toContain('电影')
+    expect(wrapper.find('[data-testid="rating"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="favorite"]').exists()).toBe(false)
     wrapper.unmount()
   })
 })

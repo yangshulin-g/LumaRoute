@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, toRef } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { MediaItem } from '@lumaroute/core'
+import { mediaKindLabel } from '../presentation/media-presenters'
 import { useSecureImage } from '../queries/use-secure-image'
 
 const props = defineProps<{
@@ -17,10 +18,13 @@ const profileId = toRef(props, 'profileId')
 const itemRef = computed(() => props.item)
 const imageSource = useSecureImage(profileId, itemRef, nearViewport)
 
-const metaLine = computed(() => {
-  const year = props.item.productionYear
-  return year != null ? String(year) : null
-})
+const kindLabel = computed(() => mediaKindLabel(props.item.kind))
+
+const metaLine = computed(() =>
+  [props.item.productionYear, kindLabel.value]
+    .filter((value) => value != null)
+    .join(' · '),
+)
 
 onMounted(() => {
   if (typeof globalThis.IntersectionObserver === 'undefined') {
@@ -70,8 +74,15 @@ onUnmounted(() => {
           class="poster poster-placeholder"
           aria-hidden="true"
         />
+        <span
+          class="kind-chip"
+          aria-hidden="true"
+        >{{ kindLabel }}</span>
       </div>
-      <span class="title">{{ item.name }}</span>
+      <span
+        class="title"
+        :title="item.name"
+      >{{ item.name }}</span>
       <span
         v-if="metaLine"
         class="meta"
@@ -94,24 +105,29 @@ onUnmounted(() => {
   outline: none;
 }
 
-.media-card:focus-visible .poster-wrap {
-  box-shadow: var(--lr-focus-ring);
-}
-
 .poster-wrap {
+  position: relative;
   border-radius: var(--lr-radius-md);
   overflow: hidden;
-  background: var(--lr-surface-muted);
+  background: var(--lr-surface-card-solid);
+  border: 1px solid var(--lr-border-subtle);
   box-shadow: var(--lr-shadow);
   transition:
     transform var(--lr-ease),
+    border-color var(--lr-ease),
     box-shadow var(--lr-ease);
 }
 
-.media-card:hover .poster-wrap,
-.media-card:focus-visible .poster-wrap {
-  transform: translateY(-2px);
+.media-card:hover .poster-wrap {
+  transform: translateY(-4px);
+  border-color: var(--lr-border-hover);
   box-shadow: var(--lr-shadow-poster);
+}
+
+.media-card:focus-visible .poster-wrap {
+  transform: translateY(-4px);
+  border-color: var(--lr-border-hover);
+  box-shadow: var(--lr-focus-ring), var(--lr-shadow-poster);
 }
 
 .poster {
@@ -119,7 +135,34 @@ onUnmounted(() => {
   width: 100%;
   aspect-ratio: 2 / 3;
   object-fit: cover;
-  background: linear-gradient(160deg, #dfe7f1 0%, #c9d5e4 100%);
+  background: linear-gradient(160deg, var(--lr-surface-muted) 0%, var(--lr-bg-canvas) 100%);
+}
+
+.kind-chip {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--lr-border-strong);
+  background: var(--lr-surface-card-solid);
+  color: var(--lr-text-primary);
+  font-size: var(--lr-font-xs);
+  font-weight: 600;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .kind-chip {
+    background: var(--lr-surface-card);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+}
+
+.media-card:hover .title {
+  color: var(--lr-accent-cyan);
 }
 
 .poster-placeholder {
@@ -137,6 +180,7 @@ onUnmounted(() => {
   line-clamp: 2;
   overflow: hidden;
   word-break: break-word;
+  transition: color var(--lr-ease);
 }
 
 .meta {

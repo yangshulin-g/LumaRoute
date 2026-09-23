@@ -99,4 +99,10 @@ describe('LibraryView', () => {
       `/media/${series.id}`,
     )
   })
+
+  it('shows the server-reported total for the library', async () => {
+    const { wrapper } = mountLibrary({ serverId: 'profile-1', libraryId: 'lib-1' })
+    await flushPromises()
+    expect(wrapper.get('[data-testid="library-count"]').text()).toBe('共 1 项')
+  })
 })
