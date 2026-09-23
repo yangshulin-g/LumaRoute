@@ -37,7 +37,7 @@ export type { RingBufferLogger } from './logging/redacting-logger'
 export type { AuthSession, LoginInput } from './auth/types'
 export type { AuthenticationAdapter } from './auth/authentication-adapter'
 export { LoginService } from './auth/login-service'
-export type { AddServerInput } from './auth/login-service'
+export type { AddServerInput, ReauthenticateInput } from './auth/login-service'
 
 export { EmbyAdapter } from './adapters/emby/emby-adapter'
 export { JellyfinAdapter } from './adapters/jellyfin/jellyfin-adapter'

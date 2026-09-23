@@ -1,8 +1,11 @@
 import { AppError } from '../errors/app-error'
 import type { CredentialStore } from '../ports/credential-store'
 import type { StoragePort } from '../ports/storage-port'
+import { orderLines } from '../server/line-order'
+import { canFailOver } from '../server/route-executor'
 import type { ServerKind, ServerProfile } from '../server/types'
 import type { AuthenticationAdapter } from './authentication-adapter'
+import type { AuthSession } from './types'
 
 export interface AddServerInput {
   name: string
@@ -10,6 +13,13 @@ export interface AddServerInput {
   baseUrl: string
   lineLabel?: string
   username: string
+  password: string
+  deviceId: string
+  appVersion: string
+}
+
+export interface ReauthenticateInput {
+  profileId: string
   password: string
   deviceId: string
   appVersion: string
@@ -66,6 +76,39 @@ export class LoginService {
       await this.credentials.delete(credentialKey)
       throw new AppError('StorageFailure', 'Unable to persist authenticated server', cause)
     }
+  }
+
+  async reauthenticate(input: ReauthenticateInput): Promise<ServerProfile> {
+    const profile = await this.storage.getServerProfile(input.profileId)
+    if (!profile) throw new AppError('StorageFailure', 'Server profile was not found')
+    const adapter = this.adapterFor(profile.kind)
+    let lastError: unknown
+    for (const line of orderLines(profile, null)) {
+      let session: AuthSession
+      try {
+        session = await adapter.authenticate({
+          baseUrl: line.baseUrl,
+          username: profile.username,
+          password: input.password,
+          deviceId: input.deviceId,
+          deviceName: 'LumaRoute',
+          appVersion: input.appVersion,
+        })
+      } catch (error) {
+        if (!canFailOver(error)) throw error
+        lastError = error
+        continue
+      }
+      if (session.serverId !== profile.serverId) {
+        throw new AppError('ServerMismatch', 'The line belongs to a different server')
+      }
+      if (session.userId !== profile.userId) {
+        throw new AppError('UserMismatch', 'The account does not match this server profile')
+      }
+      await this.credentials.set(profile.credentialKey, session.accessToken)
+      return profile
+    }
+    throw lastError ?? new AppError('NetworkUnavailable', 'No enabled server line is available')
   }
 }
 

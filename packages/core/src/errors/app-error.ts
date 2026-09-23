@@ -3,6 +3,7 @@ export type AppErrorCode =
   | 'LineTimeout'
   | 'AuthenticationExpired'
   | 'ServerMismatch'
+  | 'UserMismatch'
   | 'UnsupportedServerVersion'
   | 'MediaNotDirectPlayable'
   | 'PlayerUnavailable'
