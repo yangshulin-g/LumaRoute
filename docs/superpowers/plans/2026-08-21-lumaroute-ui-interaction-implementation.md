@@ -182,7 +182,7 @@ defineProps<{ item: MediaItem; profileId: string }>()
 - Consumes: 现有 `lr-*` class 和 CSS custom properties。
 - Produces: 深色 Aurora token、`.lr-glass-card`、统一 focus ring、毛玻璃降级和 reduced-motion 规则。
 
-- [ ] **Step 1: 写失败的全局样式契约测试**
+- [x] **Step 1: 写失败的全局样式契约测试**
 
 ```ts
 // apps/desktop/src/styles.test.ts
@@ -206,13 +206,13 @@ describe('Aurora global styles', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认红灯**
+- [x] **Step 2: 运行测试确认红灯**
 
-Run: `pnpm vitest run apps/desktop/src/styles.test.ts`
+Run: `pnpm vitest run --config vitest.workspace.ts apps/desktop/src/styles.test.ts`
 
 Expected: FAIL，缺少 `color-scheme: dark`、Aurora tokens、玻璃 class 和 reduced-motion 规则。
 
-- [ ] **Step 3: 最小实现深色 token 与玻璃基础类**
+- [x] **Step 3: 最小实现深色 token 与玻璃基础类**
 
 将 `styles.css` 的根 token 替换为以下真实设计基础，并保留文件中已有 button/input/helper 规则，随后把其中旧 token 引用映射到新 token：
 
@@ -294,13 +294,13 @@ Expected: FAIL，缺少 `color-scheme: dark`、Aurora tokens、玻璃 class 和 
 
 将 `OnboardingView.vue` 的根背景改为 Aurora 光晕，并把表单容器 class 改为 `onboarding lr-glass-card`；不改变输入字段、提交逻辑或结果文案。
 
-- [ ] **Step 4: 运行样式与 Onboarding 回归**
+- [x] **Step 4: 运行样式与 Onboarding 回归**
 
-Run: `pnpm vitest run apps/desktop/src/styles.test.ts apps/desktop/src/views/OnboardingView.test.ts apps/desktop/src/App.test.ts`
+Run: `pnpm vitest run --config vitest.workspace.ts apps/desktop/src/styles.test.ts apps/desktop/src/views/OnboardingView.test.ts apps/desktop/src/App.test.ts`
 
 Expected: PASS；Onboarding 提交行为、密码清空和初始路由测试保持通过。
 
-- [ ] **Step 5: 运行类型检查并提交**
+- [x] **Step 5: 运行类型检查并提交**
 
 Run: `pnpm --filter @lumaroute/desktop typecheck`
 
@@ -327,7 +327,7 @@ git commit -m "style: establish accessible Aurora visual foundation"
 - Consumes: `ServerProfile`, `mediaStore.activeLineId`, `mediaStore.connectionStatus(profileId)`。
 - Produces: `resolveLine(...)`；`⌘K/Ctrl+K` 只聚焦现有当前服务器搜索框；HUD 只显示真实线路标签和 healthy/checking/unhealthy/unknown。
 
-- [ ] **Step 1: 写失败的线路 presenter 与快捷键测试**
+- [x] **Step 1: 写失败的线路 presenter 与快捷键测试**
 
 ```ts
 // apps/desktop/src/presentation/line-presenters.test.ts
@@ -379,13 +379,13 @@ it('focuses current-server search on Ctrl+K without changing its scope', async (
 
 将现有 mount setup 提取为 `mountPopulatedShell()`，复用当前 `profile/services/router`，且必须 `attachTo: document.body` 以验证焦点。
 
-- [ ] **Step 2: 运行测试确认红灯**
+- [x] **Step 2: 运行测试确认红灯**
 
-Run: `pnpm vitest run apps/desktop/src/presentation/line-presenters.test.ts apps/desktop/src/components/AppShell.test.ts`
+Run: `pnpm vitest run --config vitest.workspace.ts apps/desktop/src/presentation/line-presenters.test.ts apps/desktop/src/components/AppShell.test.ts`
 
 Expected: FAIL，presenter 文件不存在，搜索框没有目标 `data-testid`，也没有快捷键监听。
 
-- [ ] **Step 3: 实现纯展示线路函数**
+- [x] **Step 3: 实现纯展示线路函数**
 
 ```ts
 // apps/desktop/src/presentation/line-presenters.ts
@@ -416,7 +416,7 @@ export function lineStateLabels(
 }
 ```
 
-- [ ] **Step 4: 实现 HUD 与快捷键生命周期**
+- [x] **Step 4: 实现 HUD 与快捷键生命周期**
 
 在 `AppShell.vue` 中加入：
 
@@ -461,13 +461,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onSearchShortcut))
 
 只调整 `AppShell/ServerSwitcher/LibrarySidebar` scoped CSS 为玻璃侧栏、HUD 顶栏、胶囊状态和清晰选中态；不创建“收藏”“拓扑”路由，不移除现有 `data-testid`。
 
-- [ ] **Step 5: 运行 Shell 与搜索回归**
+- [x] **Step 5: 运行 Shell 与搜索回归**
 
-Run: `pnpm vitest run apps/desktop/src/presentation/line-presenters.test.ts apps/desktop/src/components/AppShell.test.ts apps/desktop/src/components/ServerSwitcher.test.ts apps/desktop/src/components/LibrarySidebar.test.ts apps/desktop/src/views/SearchView.test.ts`
+Run: `pnpm vitest run --config vitest.workspace.ts apps/desktop/src/presentation/line-presenters.test.ts apps/desktop/src/components/AppShell.test.ts apps/desktop/src/components/ServerSwitcher.test.ts apps/desktop/src/components/LibrarySidebar.test.ts apps/desktop/src/views/SearchView.test.ts`
 
 Expected: PASS；快捷键聚焦、服务器切换、媒体库状态和当前服务器搜索保持通过。
 
-- [ ] **Step 6: 类型检查并提交**
+- [x] **Step 6: 类型检查并提交**
 
 Run: `pnpm --filter @lumaroute/desktop typecheck`
 
@@ -494,7 +494,7 @@ git commit -m "feat: add factual shell HUD and search shortcut"
 - Consumes: `MediaItem.runtimeSeconds`, `MediaItem.playbackPositionSeconds`, `mediaStore.continueWatching`, `mediaStore.libraries`。
 - Produces: `progressPercent()` 返回真实百分比或 `null`；Home Bento 不需要推荐/评分/Backdrop。
 
-- [ ] **Step 1: 写失败的 presenter 与继续观看卡测试**
+- [x] **Step 1: 写失败的 presenter 与继续观看卡测试**
 
 ```ts
 // apps/desktop/src/presentation/media-presenters.test.ts
@@ -555,13 +555,13 @@ expect(wrapper.get('[data-testid="continue-progress"]').text()).toBe('2%')
 expect(wrapper.get('[data-testid="library-bento-lib-1"]').text()).toContain('Movies')
 ```
 
-- [ ] **Step 2: 运行测试确认红灯**
+- [x] **Step 2: 运行测试确认红灯**
 
-Run: `pnpm vitest run apps/desktop/src/presentation/media-presenters.test.ts apps/desktop/src/components/ContinueWatchingCard.test.ts apps/desktop/src/views/HomeView.test.ts`
+Run: `pnpm vitest run --config vitest.workspace.ts apps/desktop/src/presentation/media-presenters.test.ts apps/desktop/src/components/ContinueWatchingCard.test.ts apps/desktop/src/views/HomeView.test.ts`
 
 Expected: FAIL，新文件和 Home Bento selectors 不存在。
 
-- [ ] **Step 3: 实现媒体展示函数和真实进度卡**
+- [x] **Step 3: 实现媒体展示函数和真实进度卡**
 
 ```ts
 // apps/desktop/src/presentation/media-presenters.ts
@@ -617,7 +617,7 @@ const percent = computed(() => progressPercent(props.item))
 </template>
 ```
 
-- [ ] **Step 4: 把首页重排为只依赖真实数据的 Bento**
+- [x] **Step 4: 把首页重排为只依赖真实数据的 Bento**
 
 `HomeView.vue` 使用三块区域：
 
@@ -659,13 +659,13 @@ const percent = computed(() => progressPercent(props.item))
 
 `activeLineLabel` 必须由 `resolveLine(activeProfile, mediaStore.activeLineId)` 得到；`connectionLabel` 只映射 `healthy/checking/unhealthy/unknown`，不生成延迟值。
 
-- [ ] **Step 5: 运行 Home 和 presenter 测试**
+- [x] **Step 5: 运行 Home 和 presenter 测试**
 
-Run: `pnpm vitest run apps/desktop/src/presentation/media-presenters.test.ts apps/desktop/src/components/ContinueWatchingCard.test.ts apps/desktop/src/views/HomeView.test.ts apps/desktop/src/components/AppShell.test.ts`
+Run: `pnpm vitest run --config vitest.workspace.ts apps/desktop/src/presentation/media-presenters.test.ts apps/desktop/src/components/ContinueWatchingCard.test.ts apps/desktop/src/views/HomeView.test.ts apps/desktop/src/components/AppShell.test.ts`
 
 Expected: PASS；真实进度为 `2%`（120/7200），无评分或推荐节点。
 
-- [ ] **Step 6: 类型检查并提交**
+- [x] **Step 6: 类型检查并提交**
 
 Run: `pnpm --filter @lumaroute/desktop typecheck`
 
@@ -691,7 +691,7 @@ git commit -m "feat: build Home Bento from existing media facts"
 - Consumes: `VirtualPosterGrid` 现有 props/events、`MediaItem.name/productionYear/kind/imageTag`。
 - Produces: 最大 6 列、窄窗口最小 1 列的虚拟网格；卡片只显示真实年份和 kind，不显示评分、收藏或 4K。
 
-- [ ] **Step 1: 写失败的列数上限与媒体卡事实测试**
+- [x] **Step 1: 写失败的列数上限与媒体卡事实测试**
 
 在 `VirtualPosterGrid.test.ts` 增加：
 
@@ -727,13 +727,13 @@ it('renders only media facts that exist on MediaItem', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认红灯**
+- [x] **Step 2: 运行测试确认红灯**
 
-Run: `pnpm vitest run apps/desktop/src/components/VirtualPosterGrid.test.ts`
+Run: `pnpm vitest run --config vitest.workspace.ts apps/desktop/src/components/VirtualPosterGrid.test.ts`
 
 Expected: FAIL，超宽布局超过 6 列，卡片尚未显示 kind。
 
-- [ ] **Step 3: 最小修改列数和卡片元数据**
+- [x] **Step 3: 最小修改列数和卡片元数据**
 
 ```ts
 // VirtualPosterGrid.vue
@@ -764,17 +764,17 @@ const metaLine = computed(() =>
 
 CSS 保持 `aspect-ratio: 2 / 3`，增加玻璃 kind chip、`translateY(-4px)` hover、focus-visible 和 150–250ms 过渡；不得加入点击播放按钮，因为 `series` 卡没有直接播放语义。
 
-- [ ] **Step 4: 收敛 Library/Search 容器视觉**
+- [x] **Step 4: 收敛 Library/Search 容器视觉**
 
 只改 `LibraryView.vue` 与 `SearchView.vue` scoped CSS 和标题结构，让结果区使用全宽、真实结果数和统一空态；保留 `useLibraryItems`、`VirtualPosterGrid`、分页和 250ms 当前服务器搜索逻辑。
 
-- [ ] **Step 5: 运行网格、列表和搜索测试**
+- [x] **Step 5: 运行网格、列表和搜索测试**
 
-Run: `pnpm vitest run apps/desktop/src/components/VirtualPosterGrid.test.ts apps/desktop/src/views/LibraryView.test.ts apps/desktop/src/views/SearchView.test.ts apps/desktop/src/platform/images/secure-image-loader.test.ts`
+Run: `pnpm vitest run --config vitest.workspace.ts apps/desktop/src/components/VirtualPosterGrid.test.ts apps/desktop/src/views/LibraryView.test.ts apps/desktop/src/views/SearchView.test.ts apps/desktop/src/platform/images/secure-image-loader.test.ts`
 
 Expected: PASS；10,000 项 DOM 节点仍 `<=150`，触底只请求一次下一页，图片安全测试保持通过。
 
-- [ ] **Step 6: 类型检查并提交**
+- [x] **Step 6: 类型检查并提交**
 
 Run: `pnpm --filter @lumaroute/desktop typecheck`
 
@@ -797,7 +797,7 @@ git commit -m "style: refine virtual poster wall with factual metadata"
 - Consumes: Primary `posterSource`、`MediaItem` 现有字段、真实 seasons/episodes。
 - Produces: CSS Aurora hero、真实最小详情、季/集 Deck；不请求 Backdrop，不显示评分/收藏/预播放 codec。
 
-- [ ] **Step 1: 写失败的详情范围测试**
+- [x] **Step 1: 写失败的详情范围测试**
 
 在 `MediaDetailView.test.ts` 增加：
 
@@ -824,13 +824,13 @@ it('renders selected season episodes as a real episode deck', async () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认红灯**
+- [x] **Step 2: 运行测试确认红灯**
 
-Run: `pnpm vitest run apps/desktop/src/views/MediaDetailView.test.ts`
+Run: `pnpm vitest run --config vitest.workspace.ts apps/desktop/src/views/MediaDetailView.test.ts`
 
 Expected: FAIL，缺少 `detail-hero` selector、`aurora-hero` class 和 `episode-deck` selector。
 
-- [ ] **Step 3: 最小实现沉浸结构**
+- [x] **Step 3: 最小实现沉浸结构**
 
 将现有详情 hero 标记和元数据改为：
 
@@ -864,7 +864,7 @@ Expected: FAIL，缺少 `detail-hero` selector、`aurora-hero` class 和 `episod
 
 `hero-glow` 只能是 CSS radial gradients，不能把 Primary 海报放大冒充 Backdrop。
 
-- [ ] **Step 4: 最小实现真实 Episode Deck**
+- [x] **Step 4: 最小实现真实 Episode Deck**
 
 保留 `selectSeason()` 和现有请求，模板改为：
 
@@ -888,13 +888,13 @@ Expected: FAIL，缺少 `detail-hero` selector、`aurora-hero` class 和 `episod
 </section>
 ```
 
-- [ ] **Step 5: 运行详情与图片安全测试**
+- [x] **Step 5: 运行详情与图片安全测试**
 
-Run: `pnpm vitest run apps/desktop/src/views/MediaDetailView.test.ts apps/desktop/src/platform/images/secure-image-loader.test.ts apps/desktop/src/queries`
+Run: `pnpm vitest run --config vitest.workspace.ts apps/desktop/src/views/MediaDetailView.test.ts apps/desktop/src/platform/images/secure-image-loader.test.ts apps/desktop/src/queries`
 
 Expected: PASS；播放/续播参数仍分别为 `0` 和保存位置，季/集请求保持原签名。
 
-- [ ] **Step 6: 类型检查并提交**
+- [x] **Step 6: 类型检查并提交**
 
 Run: `pnpm --filter @lumaroute/desktop typecheck`
 
@@ -921,7 +921,7 @@ git commit -m "style: add factual immersive detail workspace"
 - Consumes: `mediaStore.activeLineId`、Task 2 `lineProtocol/lineStateLabels`、现有 line CRUD callbacks。
 - Produces: 当前/首选不混淆的节点卡、HTTP/HTTPS 标签、添加线路的真实验证结果、复制成功反馈。
 
-- [ ] **Step 1: 写失败的线路事实与复制反馈测试**
+- [x] **Step 1: 写失败的线路事实与复制反馈测试**
 
 在 `ServerSettingsView.test.ts` 增加：
 
@@ -961,13 +961,13 @@ it('announces successful diagnostic copy only after the callback resolves', asyn
 })
 ```
 
-- [ ] **Step 2: 运行测试确认红灯**
+- [x] **Step 2: 运行测试确认红灯**
 
-Run: `pnpm vitest run apps/desktop/src/views/ServerSettingsView.test.ts apps/desktop/src/components/DiagnosticPanel.test.ts`
+Run: `pnpm vitest run --config vitest.workspace.ts apps/desktop/src/views/ServerSettingsView.test.ts apps/desktop/src/components/DiagnosticPanel.test.ts`
 
 Expected: FAIL，节点卡没有协议/状态标签，`DiagnosticPanel` 没有复制成功状态。
 
-- [ ] **Step 3: 把真实活动线路传给设置页**
+- [x] **Step 3: 把真实活动线路传给设置页**
 
 在 `router/index.ts` 的 `settingsProps()` 中读取 media store：
 
@@ -983,7 +983,7 @@ activeLineId:
 
 不要 fallback 到 `preferredLineId`；没有真实会话结果时节点只显示“首选线路”。
 
-- [ ] **Step 4: 实现线路节点卡**
+- [x] **Step 4: 实现线路节点卡**
 
 在 `ServerSettingsView.vue` 导入 Task 2 presenter，并替换 line row 的信息区：
 
@@ -1012,7 +1012,7 @@ activeLineId:
 
 `LineEditor` 和 `LineStatus` 只改成节点添加区/扫描动画视觉；动画仅绑定已有 `testing` 状态。不得添加批量测速按钮。
 
-- [ ] **Step 5: 实现复制成功的可访问反馈**
+- [x] **Step 5: 实现复制成功的可访问反馈**
 
 ```ts
 // DiagnosticPanel.vue <script setup>
@@ -1032,13 +1032,13 @@ async function onCopy(): Promise<void> {
 <p v-if="copyStatus" role="status" class="copy-status">{{ copyStatus }}</p>
 ```
 
-- [ ] **Step 6: 运行设置、线路和诊断测试**
+- [x] **Step 6: 运行设置、线路和诊断测试**
 
-Run: `pnpm vitest run apps/desktop/src/views/ServerSettingsView.test.ts apps/desktop/src/components/DiagnosticPanel.test.ts apps/desktop/src/stores/server-store.test.ts`
+Run: `pnpm vitest run --config vitest.workspace.ts apps/desktop/src/views/ServerSettingsView.test.ts apps/desktop/src/components/DiagnosticPanel.test.ts apps/desktop/src/stores/server-store.test.ts`
 
 Expected: PASS；ServerId mismatch 仍不保存，手动首选仍调用 `setPreferredLine(profileId, lineId)`。
 
-- [ ] **Step 7: 类型检查并提交**
+- [x] **Step 7: 类型检查并提交**
 
 Run: `pnpm --filter @lumaroute/desktop typecheck`
 
@@ -1062,7 +1062,7 @@ git commit -m "feat: present factual route nodes and copy feedback"
 - Consumes: `playerStore.state/positionSeconds/durationSeconds/activePlan/activeLineId`、`playbackPlanFacts()`。
 - Produces: 毛玻璃 HUD、真实播放进度和播放后技术事实；仍只提供 pause/resume/seek/stop。
 
-- [ ] **Step 1: 写失败的播放计划展示与控件范围测试**
+- [x] **Step 1: 写失败的播放计划展示与控件范围测试**
 
 在 `media-presenters.test.ts` 增加：
 
@@ -1152,13 +1152,13 @@ describe('PlayerControls', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认红灯**
+- [x] **Step 2: 运行测试确认红灯**
 
-Run: `pnpm vitest run apps/desktop/src/presentation/media-presenters.test.ts apps/desktop/src/components/PlayerControls.test.ts`
+Run: `pnpm vitest run --config vitest.workspace.ts apps/desktop/src/presentation/media-presenters.test.ts apps/desktop/src/components/PlayerControls.test.ts`
 
 Expected: FAIL，HUD 没有 `playback-facts`。
 
-- [ ] **Step 3: 实现仅基于 activePlan 的技术事实**
+- [x] **Step 3: 实现仅基于 activePlan 的技术事实**
 
 在 `PlayerControls.vue` 加入：
 
@@ -1200,13 +1200,13 @@ const planFacts = computed(() =>
 
 不要添加码率实时刷新、缓冲条、±10 秒、音量、倍速、全屏、音轨、字幕或章节按钮。
 
-- [ ] **Step 4: 运行播放器组件、store 与进度回归**
+- [x] **Step 4: 运行播放器组件、store 与进度回归**
 
-Run: `pnpm vitest run apps/desktop/src/presentation/media-presenters.test.ts apps/desktop/src/components/PlayerControls.test.ts apps/desktop/src/stores/player-store.test.ts packages/core/src/playback/progress-reporter.test.ts`
+Run: `pnpm vitest run --config vitest.workspace.ts apps/desktop/src/presentation/media-presenters.test.ts apps/desktop/src/components/PlayerControls.test.ts apps/desktop/src/stores/player-store.test.ts packages/core/src/playback/progress-reporter.test.ts`
 
 Expected: PASS；播放计划字段真实显示，进度上报行为不变。
 
-- [ ] **Step 5: 类型检查并提交**
+- [x] **Step 5: 类型检查并提交**
 
 Run: `pnpm --filter @lumaroute/desktop typecheck`
 
@@ -1228,7 +1228,7 @@ git commit -m "style: surface real playback facts in v0.1 HUD"
 - Consumes: Task 2 快捷键、Task 3 真实进度、现有浏览/搜索/播放 E2E。
 - Produces: 自动化证明搜索仍限当前服务器、图片 URL 不含 Token、播放闭环保持有效。
 
-- [ ] **Step 1: 扩展 E2E 验收**
+- [x] **Step 1: 扩展 E2E 验收**
 
 ```ts
 // tests/e2e/browse-search-play.spec.ts
@@ -1255,9 +1255,9 @@ test('uses the Aurora shell without widening current-server scope', async ({
 
 保留原有 browse/search/play/progress 测试，不用截图断言替代行为断言。
 
-- [ ] **Step 2: 运行 UI 单测和 E2E**
+- [x] **Step 2: 运行 UI 单测和 E2E**
 
-Run: `pnpm vitest run apps/desktop/src`
+Run: `pnpm vitest run --config vitest.workspace.ts apps/desktop/src`
 
 Expected: PASS，全部 desktop 测试通过。
 
@@ -1265,7 +1265,7 @@ Run: `pnpm test:e2e -- tests/e2e/browse-search-play.spec.ts tests/e2e/onboarding
 
 Expected: PASS；添加服务器、浏览、当前服务器搜索、播放和 12 秒进度上报均通过。
 
-- [ ] **Step 3: 运行完整质量门**
+- [x] **Step 3: 运行完整质量门**
 
 Run: `pnpm check`
 
@@ -1288,12 +1288,32 @@ Expected:
 - 设置页只显示 HTTP/HTTPS、当前/首选/禁用和真实验证结果，不出现延迟、丢包、QUIC/gRPC。
 - 独立 mpv 窗口行为不变；WebView HUD 只控制现有 v0.1 能力。
 
-- [ ] **Step 5: 提交验收测试**
+- [x] **Step 5: 提交验收测试**
 
 ```bash
 git add tests/e2e/browse-search-play.spec.ts
 git commit -m "test: lock factual Aurora UI acceptance"
 ```
+
+## 执行记录
+
+以下为 Task 1–8 实施期间对执行细节的调整与补充，不改变上文范围决策：
+
+- 毛玻璃回退：`.lr-glass-card` 默认不透明（`--lr-surface-card-solid`），仅在 `@supports (backdrop-filter)` 内切换半透明 + blur（人工决策）。
+- 播放 HUD 显示解析后的线路名称，不显示原始 line id。
+- 路由向设置页传入会话 `activeLineId`（无会话线路时为 `null`，不回退首选线路）；设置页分别展示“当前线路”和“首选线路”。
+- 诊断复制失败时显示“复制失败”。
+- 清单外新增/修改文件：`apps/desktop/vitest.config.ts`、`eslint.config.mjs`、`apps/desktop/src/views/LibraryView.test.ts`、`apps/desktop/src/router/index.test.ts`、`tests/e2e/support/media-servers.ts`、`tests/integration/support/mock-media-server.ts`。
+- E2E mock 服务端提供真实、校验 Token 的 PNG 海报，并验证搜索不跨服务器。
+- 全分支评审修复：
+  - Library/Search 的“当前线路”显示解析后的线路名称，未知或缺失时显示“尚无活动线路”，不回退首选线路。
+  - `--lr-text-tertiary` 指向 `--lr-text-secondary`（满足 AA）；`--lr-text-muted` 仅用于占位符与装饰，信息性文字（卡片元数据、已禁用标签、状态图例、分组标题、进度值）改用 tertiary。
+  - `MediaCard` 类型徽章始终不透明，移除逐卡 `backdrop-filter`。
+  - `playbackPlanFacts` 过滤空的 container/videoCodec/audioCodec；`PlayerControls` 使用 index 组合 key。
+  - `lineProtocol` 对无法解析的 `baseUrl` 返回 `null`，设置页省略协议徽章。
+  - `⌘K/Ctrl+K` 按 `event.code === 'KeyK'` 匹配（`code` 为空时回退 `key`），输入法组合中忽略；补充 Meta+K 与 HUD 异常状态测试。
+  - 首页媒体库类型经 `collectionTypeLabel` 本地化（未知值原样显示，`null` 显示“媒体库”）。
+  - 所有 `pnpm vitest run` 命令需带 `--config vitest.workspace.ts`。
 
 ## Deferred Work Packages（必须先修订 spec，不属于 Task）
 
