@@ -3,11 +3,12 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createApp } from 'vue'
 import { createMemoryHistory, createRouter, RouterLink } from 'vue-router'
 import { describe, expect, it, vi } from 'vitest'
-import type { Library, MediaItem } from '@lumaroute/core'
+import type { Library, MediaItem, ServerProfile } from '@lumaroute/core'
 import { servicesKey } from '../composition/inject-services'
 import type { AppServices } from '../composition/service-types'
 import { useAppStore } from '../stores/app-store'
 import { useMediaStore } from '../stores/media-store'
+import { useServerStore } from '../stores/server-store'
 import HomeView from './HomeView.vue'
 
 const movie: MediaItem = {
@@ -30,6 +31,21 @@ const library: Library = {
   collectionType: 'movies',
 }
 
+const profile: ServerProfile = {
+  id: 'profile-1',
+  name: 'test',
+  kind: 'emby',
+  serverId: 'srv-1',
+  userId: 'u-1',
+  username: 'demo',
+  credentialKey: 'lumaroute/profile-1',
+  preferredLineId: 'line-1',
+  lines: [
+    { id: 'line-1', label: 'Primary', baseUrl: 'https://emby.example', priority: 0, enabled: true },
+    { id: 'line-2', label: 'Backup', baseUrl: 'http://backup.example', priority: 1, enabled: true },
+  ],
+}
+
 function mountHome(options: { activeServerId: string }) {
   const media = {
     getContinueWatching: vi.fn().mockResolvedValue({ value: [movie], lineId: 'line-2' }),
@@ -43,6 +59,9 @@ function mountHome(options: { activeServerId: string }) {
   app.use(pinia)
   setActivePinia(pinia)
   app.provide(servicesKey, services)
+  app.runWithContext(() => {
+    useServerStore().profiles = [profile]
+  })
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -88,7 +107,12 @@ describe('HomeView', () => {
     expect(wrapper.text()).toContain('继续观看')
     expect(wrapper.text()).toContain(movie.name)
     expect(wrapper.text()).toContain(library.name)
-    expect(wrapper.get('[data-testid="active-line"]').text()).toContain('line-2')
+    expect(wrapper.get('[data-testid="active-line"]').text()).toContain('Backup')
+    expect(wrapper.text()).toContain('连接状态：连接正常')
+    expect(wrapper.find('[data-testid="spotlight-rating"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="recommendations"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="continue-progress"]').text()).toBe('2%')
+    expect(wrapper.get('[data-testid="library-bento-lib-1"]').text()).toContain('Movies')
   })
 
   it('shows a loading state before the parent probe finishes', async () => {
