@@ -80,6 +80,7 @@ async function mountPopulatedShell() {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
+      { path: '/onboarding', name: 'onboarding', component: { template: '<div />' } },
       {
         path: '/',
         component: AppShell,
@@ -93,7 +94,7 @@ async function mountPopulatedShell() {
             }),
           },
           { path: 'library/:libraryId', component: { template: '<div />' } },
-          { path: 'settings', component: { template: '<div />' } },
+          { path: 'settings', name: 'settings', component: { template: '<div />' } },
         ],
       },
     ],
@@ -130,7 +131,7 @@ async function mountPopulatedShell() {
   })
   await flushPromises()
 
-  return { wrapper, app, services }
+  return { wrapper, app, services, router }
 }
 
 describe('AppShell home content', () => {
@@ -156,6 +157,18 @@ describe('AppShell home content', () => {
     await flushPromises()
     expect(pill.text()).toContain('尚无活动线路')
     expect(pill.text()).not.toContain('Primary')
+    wrapper.unmount()
+  })
+
+  it('returns to onboarding and stops rendering shell content after the last server is removed', async () => {
+    const { wrapper, app, router } = await mountPopulatedShell()
+    expect(wrapper.findComponent(HomeView).exists()).toBe(true)
+    await app.runWithContext(async () => {
+      useServerStore().profiles = []
+    })
+    await flushPromises()
+    expect(router.currentRoute.value.name).toBe('onboarding')
+    expect(wrapper.findComponent(HomeView).exists()).toBe(false)
     wrapper.unmount()
   })
 

@@ -18,21 +18,11 @@ export function settingsProps() {
   const mediaStore = useMediaStore()
   const activeId = appStore.activeServerId
   const profile =
-    serverStore.profiles.find((entry) => entry.id === activeId) ?? serverStore.profiles[0]
+    serverStore.profiles.find((entry) => entry.id === activeId) ?? serverStore.profiles[0] ?? null
 
   return {
     profiles: serverStore.profiles,
-    profile: profile ?? {
-      id: 'missing',
-      name: 'No server',
-      kind: 'jellyfin' as const,
-      serverId: '',
-      userId: '',
-      username: '',
-      credentialKey: '',
-      preferredLineId: '',
-      lines: [] as ServerLine[],
-    },
+    profile,
     activeServerId: activeId,
     activeLineId:
       mediaStore.activeLineId &&
@@ -77,7 +67,7 @@ function requireActiveServerId(): string {
 }
 
 export function createAppRouter() {
-  return createRouter({
+  const router = createRouter({
     history: createWebHistory(),
     routes: [
       {
@@ -145,4 +135,11 @@ export function createAppRouter() {
       },
     ],
   })
+
+  router.beforeEach((to) => {
+    if (to.name === 'onboarding') return true
+    return useServerStore().profiles.length > 0 ? true : { name: 'onboarding' }
+  })
+
+  return router
 }

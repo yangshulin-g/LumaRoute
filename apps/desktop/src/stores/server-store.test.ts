@@ -128,4 +128,15 @@ describe('useServerStore', () => {
       expect(selectServer).toHaveBeenCalledWith('profile-1')
     })
   })
+
+  it('leaves no active server after the last server is deleted', async () => {
+    const remove = vi.fn().mockResolvedValue(undefined)
+    const services = { catalog: { remove } } as unknown as AppServices
+    await withServices(services, async (store) => {
+      store.profiles = [{ id: 'profile-2', name: 'Office' }] as never
+      await store.deleteServer('profile-2')
+      expect(store.profiles).toEqual([])
+      expect(selectServer).toHaveBeenCalledWith(null)
+    })
+  })
 })

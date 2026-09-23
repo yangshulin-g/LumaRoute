@@ -4,7 +4,7 @@ import type { ServerProfile } from '@lumaroute/core'
 import { useAppStore } from '../stores/app-store'
 import { useMediaStore } from '../stores/media-store'
 import { useServerStore } from '../stores/server-store'
-import { settingsProps } from './index'
+import { createAppRouter, settingsProps } from './index'
 
 const profile: ServerProfile = {
   id: 'profile-1',
@@ -41,5 +41,33 @@ describe('settingsProps', () => {
   it('ignores a session line that belongs to another profile', () => {
     useMediaStore().activeLineId = 'line-9'
     expect(settingsProps().activeLineId).toBeNull()
+  })
+
+  it('does not fabricate a placeholder profile when no server exists', () => {
+    useServerStore().profiles = []
+    useAppStore().activeServerId = null
+    expect(settingsProps().profile).toBeNull()
+  })
+})
+
+describe('createAppRouter', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('redirects every shell route to onboarding while no server exists', async () => {
+    useServerStore().profiles = []
+    const router = createAppRouter()
+    await router.push('/settings')
+    expect(router.currentRoute.value.name).toBe('onboarding')
+    await router.push('/search?q=Arrival')
+    expect(router.currentRoute.value.name).toBe('onboarding')
+  })
+
+  it('keeps shell routes reachable once a server exists', async () => {
+    useServerStore().profiles = [profile]
+    const router = createAppRouter()
+    await router.push('/search')
+    expect(router.currentRoute.value.name).toBe('search')
   })
 })

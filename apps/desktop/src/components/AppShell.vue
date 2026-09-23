@@ -46,6 +46,13 @@ watch(
   { immediate: true },
 )
 
+watch(
+  () => serverStore.profiles.length,
+  (count) => {
+    if (count === 0) void router.replace({ name: 'onboarding' })
+  },
+)
+
 function onSearchShortcut(event: KeyboardEvent): void {
   if (event.isComposing || !(event.metaKey || event.ctrlKey)) return
   const isK = event.code ? event.code === 'KeyK' : event.key.toLowerCase() === 'k'
@@ -156,7 +163,7 @@ async function onRetry(profileId: string): Promise<void> {
         </label>
       </header>
       <main>
-        <RouterView />
+        <RouterView v-if="serverStore.profiles.length > 0" />
       </main>
     </div>
   </div>
