@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { AppError, type MediaItem, type MediaKind } from '@lumaroute/core'
+import { AppError, type MediaItem } from '@lumaroute/core'
 import PlayerControls from '../components/PlayerControls.vue'
 import { injectServices } from '../composition/inject-services'
+import { mediaKindLabel } from '../presentation/media-presenters'
 import { useSecureImage } from '../queries/use-secure-image'
 import { useAppStore } from '../stores/app-store'
 import { useMediaStore } from '../stores/media-store'
@@ -46,32 +47,12 @@ function formatRuntime(totalSeconds: number | null): string | null {
   return formatClock(totalSeconds)
 }
 
-function kindLabel(kind: MediaKind): string {
-  switch (kind) {
-    case 'movie':
-      return '电影'
-    case 'series':
-      return '剧集'
-    case 'season':
-      return '季'
-    case 'episode':
-      return '单集'
-  }
-}
-
 const item = computed(() => mediaStore.detailItem)
 const seasons = computed(() =>
   mediaStore.detailChildren.filter((entry) => entry.kind === 'season'),
 )
 const canResume = computed(() => (item.value?.playbackPositionSeconds ?? 0) > 0)
-const mediaSummary = computed(() => {
-  const current = item.value
-  if (!current) return null
-  const parts: string[] = [kindLabel(current.kind)]
-  const runtime = formatRuntime(current.runtimeSeconds)
-  if (runtime) parts.push(runtime)
-  return parts.join(' · ')
-})
+const runtimeLabel = computed(() => formatRuntime(item.value?.runtimeSeconds ?? null))
 
 const profileId = computed(() => resolvedServerId.value ?? 'missing')
 const itemRef = computed(
@@ -233,7 +214,14 @@ onBeforeUnmount(() => {
     v-else-if="item"
     class="media-detail"
   >
-    <div class="detail-hero">
+    <div
+      data-testid="detail-hero"
+      class="detail-hero aurora-hero"
+    >
+      <div
+        class="hero-glow"
+        aria-hidden="true"
+      />
       <div class="poster-panel">
         <img
           v-if="posterSource"
@@ -252,17 +240,23 @@ onBeforeUnmount(() => {
 
       <div class="detail-main">
         <header>
+          <p class="eyebrow">
+            {{ mediaKindLabel(item.kind) }}
+          </p>
           <h1>{{ item.name }}</h1>
-          <p class="meta-line">
+          <p
+            v-if="item.productionYear != null || runtimeLabel"
+            class="meta-line"
+          >
             <span
               v-if="item.productionYear != null"
               data-testid="year"
             >{{ item.productionYear }}</span>
-            <span v-if="item.productionYear != null && mediaSummary"> · </span>
+            <span v-if="item.productionYear != null && runtimeLabel"> · </span>
             <span
-              v-if="mediaSummary"
+              v-if="runtimeLabel"
               data-testid="media-summary"
-            >{{ mediaSummary }}</span>
+            >{{ runtimeLabel }}</span>
           </p>
         </header>
 
@@ -302,10 +296,13 @@ onBeforeUnmount(() => {
 
     <section
       v-if="item.kind === 'series'"
-      class="series-nav"
+      class="series-nav lr-glass-card"
       aria-label="季与剧集"
     >
-      <h2>剧集</h2>
+      <div class="deck-heading">
+        <h2>选集</h2>
+        <span class="lr-muted">{{ episodes.length ? `当前季 ${episodes.length} 集` : '请选择季' }}</span>
+      </div>
       <ul class="season-list">
         <li
           v-for="season in seasons"
@@ -325,15 +322,22 @@ onBeforeUnmount(() => {
 
       <ul
         v-if="episodes.length > 0"
-        class="episode-list"
+        class="episode-deck"
+        data-testid="episode-deck"
       >
         <li
           v-for="episode in episodes"
           :key="episode.id"
         >
-          <RouterLink :to="`/media/${episode.id}`">
-            <span v-if="episode.indexNumber != null">E{{ String(episode.indexNumber).padStart(2, '0') }} · </span>
-            {{ episode.name }}
+          <RouterLink
+            :to="`/media/${episode.id}`"
+            class="episode-chip"
+          >
+            <span
+              v-if="episode.indexNumber != null"
+              class="episode-index"
+            >E{{ String(episode.indexNumber).padStart(2, '0') }}</span>
+            <span class="episode-name">{{ episode.name }}</span>
           </RouterLink>
         </li>
       </ul>
@@ -349,15 +353,31 @@ onBeforeUnmount(() => {
 }
 
 .detail-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: grid;
   grid-template-columns: minmax(9.5rem, 13rem) minmax(0, 1fr);
   gap: 1.75rem;
   align-items: start;
-  padding: 1.35rem 1.4rem;
-  background: var(--lr-surface);
-  border: 1px solid var(--lr-border);
+  padding: 1.6rem 1.6rem;
+  background: var(--lr-surface-card-solid);
+  border: 1px solid var(--lr-border-subtle);
   border-radius: var(--lr-radius-lg);
-  box-shadow: var(--lr-shadow);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 8%),
+    var(--lr-shadow);
+}
+
+.hero-glow {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 80% at 12% 0%, rgb(6 182 212 / 22%) 0%, transparent 70%),
+    radial-gradient(50% 70% at 88% 12%, rgb(139 92 246 / 20%) 0%, transparent 72%),
+    radial-gradient(70% 60% at 50% 110%, rgb(59 130 246 / 16%) 0%, transparent 70%);
 }
 
 .poster {
@@ -366,8 +386,9 @@ onBeforeUnmount(() => {
   aspect-ratio: 2 / 3;
   object-fit: cover;
   border-radius: var(--lr-radius-md);
-  background: linear-gradient(160deg, #dfe7f1 0%, #c9d5e4 100%);
-  box-shadow: var(--lr-shadow-md);
+  background: linear-gradient(160deg, var(--lr-surface-muted) 0%, var(--lr-bg-canvas) 100%);
+  border: 1px solid var(--lr-border-subtle);
+  box-shadow: var(--lr-shadow-poster), var(--lr-shadow-md);
 }
 
 .poster-placeholder {
@@ -385,6 +406,15 @@ onBeforeUnmount(() => {
 header {
   display: grid;
   gap: 0.4rem;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--lr-accent-cyan);
+  font-size: var(--lr-font-xs);
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .meta-line {
@@ -410,14 +440,21 @@ header {
   display: grid;
   gap: 0.85rem;
   padding: 1.1rem 1.15rem;
-  background: var(--lr-surface);
-  border: 1px solid var(--lr-border);
-  border-radius: var(--lr-radius-md);
-  box-shadow: var(--lr-shadow);
+}
+
+.deck-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.deck-heading span {
+  font-size: var(--lr-font-sm);
 }
 
 .season-list,
-.episode-list {
+.episode-deck {
   margin: 0;
   padding: 0;
   list-style: none;
@@ -436,35 +473,70 @@ header {
   font-size: var(--lr-font-sm);
   box-shadow: none;
   background: var(--lr-canvas);
+  border: 1px solid var(--lr-border-subtle);
+  transition:
+    background var(--lr-ease),
+    border-color var(--lr-ease),
+    color var(--lr-ease);
+}
+
+.season-chip:hover {
+  border-color: var(--lr-border-hover);
 }
 
 .season-chip[aria-pressed='true'] {
-  border-color: transparent;
+  border-color: var(--lr-border-hover);
   background: var(--lr-accent-soft);
   color: var(--lr-accent);
   font-weight: 650;
 }
 
-.episode-list {
-  display: grid;
-  gap: 0.25rem;
+.season-chip:focus-visible,
+.episode-chip:focus-visible {
+  outline: none;
+  box-shadow: var(--lr-focus-ring);
 }
 
-.episode-list a {
-  display: block;
-  padding: 0.7rem 0.8rem;
+.episode-deck {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0.5rem;
+}
+
+.episode-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.65rem 0.8rem;
   border-radius: var(--lr-radius-sm);
   text-decoration: none;
-  border: 1px solid transparent;
+  color: var(--lr-text-primary);
+  background: var(--lr-surface-muted);
+  border: 1px solid var(--lr-border-subtle);
   font-size: var(--lr-font-md);
   transition:
     background var(--lr-ease),
     border-color var(--lr-ease);
 }
 
-.episode-list a:hover {
-  background: var(--lr-canvas);
-  border-color: var(--lr-border);
+.episode-chip:hover {
+  background: var(--lr-surface-card-hover);
+  border-color: var(--lr-border-hover);
+}
+
+.episode-index {
+  flex: none;
+  color: var(--lr-accent-cyan);
+  font-size: var(--lr-font-xs);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.episode-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 640px) {

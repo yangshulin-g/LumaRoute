@@ -183,6 +183,27 @@ describe('MediaDetailView', () => {
     expect(wrapper.find('[data-testid="recommendations"]').exists()).toBe(false)
   })
 
+  it('builds an immersive layout without claiming unavailable media facts', async () => {
+    const { wrapper } = mountDetail({ itemId: movie.id })
+    await flushPromises()
+    expect(wrapper.get('[data-testid="detail-hero"]').classes()).toContain('aurora-hero')
+    expect(wrapper.get('[data-testid="detail-poster"]').attributes('src') ?? '').not.toContain(
+      'Backdrop',
+    )
+    expect(wrapper.find('[data-testid="rating"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="favorite"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="technical-specs"]').exists()).toBe(false)
+  })
+
+  it('renders selected season episodes as a real episode deck', async () => {
+    const { wrapper } = mountSeriesDetail()
+    await flushPromises()
+    await wrapper.get('[data-season-id="season-1"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="episode-deck"]').text()).toContain('E01')
+    expect(wrapper.get('[data-testid="episode-deck"]').text()).toContain('Dulcinea')
+  })
+
   it('loads seasons for a series and episodes for the selected season', async () => {
     const { wrapper, media } = mountSeriesDetail()
     await flushPromises()
