@@ -97,6 +97,7 @@ describe('useServerStore', () => {
       serverId: 'server-a',
     })
     expect(store.profiles).toEqual([{ id: 'profile-1' }])
+    expect(selectServer).toHaveBeenCalledWith('profile-1')
   })
 
   it('reorders servers and removes active server through the catalog', async () => {

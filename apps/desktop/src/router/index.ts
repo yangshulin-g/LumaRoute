@@ -1,5 +1,11 @@
-import { createRouter, createWebHistory, useRouter } from 'vue-router'
+import {
+  createRouter,
+  createWebHistory,
+  type RouteLocationNormalizedLoaded,
+  type Router,
+} from 'vue-router'
 import type { ServerLine } from '@lumaroute/core'
+import type { OnboardingInput } from '../composition/service-types'
 import AppShell from '../components/AppShell.vue'
 import { injectServices } from '../composition/inject-services'
 import HomeView from '../views/HomeView.vue'
@@ -61,6 +67,30 @@ export function settingsProps() {
   }
 }
 
+export function onboardingProps(
+  route: Pick<RouteLocationNormalizedLoaded, 'query'>,
+  router: Pick<Router, 'replace' | 'back' | 'options'>,
+) {
+  const serverStore = useServerStore()
+  const adding = route.query.mode === 'add' && serverStore.profiles.length > 0
+  return {
+    mode: adding ? ('add' as const) : ('first' as const),
+    addServer: async (input: OnboardingInput) => {
+      const result = await serverStore.addServer(input)
+      await router.replace({ name: 'home' })
+      return result
+    },
+    ...(adding
+      ? {
+          cancel: () => {
+            if (typeof router.options.history.state.back === 'string') router.back()
+            else void router.replace({ name: 'home' })
+          },
+        }
+      : {}),
+  }
+}
+
 function requireActiveServerId(): string {
   const appStore = useAppStore()
   return appStore.activeServerId ?? 'missing'
@@ -74,18 +104,7 @@ export function createAppRouter() {
         path: '/onboarding',
         name: 'onboarding',
         component: OnboardingView,
-        props: () => {
-          const router = useRouter()
-          return {
-            addServer: async (
-              input: Parameters<ReturnType<typeof useServerStore>['addServer']>[0],
-            ) => {
-              const result = await useServerStore().addServer(input)
-              await router.replace({ name: 'home' })
-              return result
-            },
-          }
-        },
+        props: (route) => onboardingProps(route, router),
       },
       {
         path: '/',

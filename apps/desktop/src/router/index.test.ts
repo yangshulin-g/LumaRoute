@@ -1,10 +1,11 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Router } from 'vue-router'
 import type { ServerProfile } from '@lumaroute/core'
 import { useAppStore } from '../stores/app-store'
 import { useMediaStore } from '../stores/media-store'
 import { useServerStore } from '../stores/server-store'
-import { createAppRouter, settingsProps } from './index'
+import { createAppRouter, onboardingProps, settingsProps } from './index'
 
 const profile: ServerProfile = {
   id: 'profile-1',
@@ -69,5 +70,60 @@ describe('createAppRouter', () => {
     const router = createAppRouter()
     await router.push('/search')
     expect(router.currentRoute.value.name).toBe('search')
+  })
+})
+
+describe('onboardingProps', () => {
+  function fakeRouter(back: string | null) {
+    return {
+      replace: vi.fn().mockResolvedValue(undefined),
+      back: vi.fn(),
+      options: { history: { state: { back } } },
+    } as unknown as Router
+  }
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    useServerStore().profiles = [profile]
+  })
+
+  it('offers cancel in add mode and returns to the previous page', () => {
+    const router = fakeRouter('/settings')
+    const props = onboardingProps({ query: { mode: 'add' } }, router)
+    expect(props.mode).toBe('add')
+    props.cancel?.()
+    expect(router.back).toHaveBeenCalledOnce()
+  })
+
+  it('falls back to home when add mode has no in-app history', () => {
+    const router = fakeRouter(null)
+    onboardingProps({ query: { mode: 'add' } }, router).cancel?.()
+    expect(router.back).not.toHaveBeenCalled()
+    expect(router.replace).toHaveBeenCalledWith({ name: 'home' })
+  })
+
+  it('hides cancel on first launch even if mode=add is requested', () => {
+    useServerStore().profiles = []
+    const props = onboardingProps({ query: { mode: 'add' } }, fakeRouter('/'))
+    expect(props.mode).toBe('first')
+    expect(props.cancel).toBeUndefined()
+  })
+
+  it('lands on home after the new server is saved', async () => {
+    const router = fakeRouter(null)
+    const store = useServerStore()
+    const addServer = vi
+      .spyOn(store, 'addServer')
+      .mockResolvedValue({ serverName: 'Office', serverId: 'server-b', id: 'profile-2' })
+    const input = {
+      name: 'Office',
+      kind: 'jellyfin' as const,
+      baseUrl: 'https://office.example',
+      username: 'alice',
+      password: 'secret',
+    }
+    await onboardingProps({ query: { mode: 'add' } }, router).addServer(input)
+    expect(addServer).toHaveBeenCalledWith(input)
+    expect(router.replace).toHaveBeenCalledWith({ name: 'home' })
   })
 })

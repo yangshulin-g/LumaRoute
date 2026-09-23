@@ -1,4 +1,4 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import ServerSettingsView from './ServerSettingsView.vue'
 import type { ServerProfile } from '@lumaroute/core'
@@ -76,6 +76,7 @@ function mountSettings(options: {
       renameServer: renameServer as (profileId: string, name: string) => Promise<void>,
       saveProfile: vi.fn() as unknown as (profile: ServerProfile) => Promise<void>,
     },
+    global: { stubs: { RouterLink: RouterLinkStub } },
   })
 
   return {
@@ -187,5 +188,13 @@ describe('ServerSettingsView', () => {
     expect(wrapper.get('[data-testid="line-rename-error"]').text()).toBe('线路名称不能为空')
     await wrapper.get('[data-testid="cancel-line-label-line-1"]').trigger('click')
     expect(wrapper.find('[data-testid="line-rename-error"]').exists()).toBe(false)
+  })
+
+  it('links to add-server onboarding from the server list', () => {
+    const { wrapper } = mountSettings({ profiles: [profileOne] })
+    const link = wrapper.getComponent(RouterLinkStub)
+    expect(link.props('to')).toEqual({ name: 'onboarding', query: { mode: 'add' } })
+    expect(link.text()).toBe('添加服务器')
+    expect(link.attributes('data-testid')).toBe('settings-add-server')
   })
 })

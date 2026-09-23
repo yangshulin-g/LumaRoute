@@ -14,6 +14,8 @@ type AddServerResult = {
 
 const props = defineProps<{
   addServer: (input: OnboardingInput) => Promise<AddServerResult | void>
+  mode?: 'first' | 'add'
+  cancel?: () => void
 }>()
 
 const form = reactive({
@@ -64,7 +66,7 @@ async function submit(): Promise<void> {
         </p>
         <h1>光路</h1>
         <p class="lr-muted subtitle">
-          连接第一台 Emby / Jellyfin 服务器
+          {{ mode === 'add' ? '添加另一台 Emby / Jellyfin 服务器' : '连接第一台 Emby / Jellyfin 服务器' }}
         </p>
       </header>
       <form @submit.prevent="submit">
@@ -134,6 +136,16 @@ async function submit(): Promise<void> {
           :disabled="submitting"
         >
           {{ submitting ? '连接中…' : '连接' }}
+        </button>
+        <button
+          v-if="mode === 'add' && cancel"
+          type="button"
+          class="lr-btn-secondary lr-btn-lg submit"
+          data-testid="onboarding-cancel"
+          :disabled="submitting"
+          @click="cancel"
+        >
+          取消
         </button>
       </form>
       <div

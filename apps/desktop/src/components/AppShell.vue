@@ -83,6 +83,10 @@ async function onRetry(profileId: string): Promise<void> {
   }
   await mediaStore.loadHome(profileId)
 }
+
+function onAddServer(): void {
+  void router.push({ name: 'onboarding', query: { mode: 'add' } })
+}
 </script>
 
 <template>
@@ -102,6 +106,7 @@ async function onRetry(profileId: string): Promise<void> {
           :status-by-id="statusById"
           @select="onSelectServer"
           @retry="onRetry"
+          @add="onAddServer"
         />
         <p
           class="status-legend"

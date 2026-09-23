@@ -172,6 +172,14 @@ describe('AppShell home content', () => {
     wrapper.unmount()
   })
 
+  it('opens add-server onboarding from the sidebar plus button', async () => {
+    const { wrapper, router } = await mountPopulatedShell()
+    await wrapper.get('[data-testid="add-server"]').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).toBe('/onboarding?mode=add')
+    wrapper.unmount()
+  })
+
   it('focuses current-server search on Ctrl+K without changing its scope', async () => {
     const { wrapper } = await mountPopulatedShell()
     const input = wrapper.get('[data-testid="current-server-search"]').element as HTMLInputElement

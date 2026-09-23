@@ -86,4 +86,13 @@ describe('ServerSwitcher', () => {
     )
     expect(wrapper.find('[data-testid="server-retry-profile-1"]').exists()).toBe(false)
   })
+
+  it('emits add from the labelled plus button next to the heading', async () => {
+    const wrapper = mountSwitcher({})
+    const add = wrapper.get('[data-testid="add-server"]')
+    expect(add.attributes('aria-label')).toBe('添加服务器')
+    expect(add.text()).toBe('+')
+    await add.trigger('click')
+    expect(wrapper.emitted('add')).toEqual([[]])
+  })
 })

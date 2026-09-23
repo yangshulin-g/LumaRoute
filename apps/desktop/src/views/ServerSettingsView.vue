@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import type { ServerLine, ServerProfile } from '@lumaroute/core'
 import DiagnosticPanel from '../components/DiagnosticPanel.vue'
 import LineEditor from '../components/LineEditor.vue'
@@ -185,7 +186,16 @@ async function onSensitiveChange(lineId: string, event: Event): Promise<void> {
     </header>
 
     <section class="panel">
-      <h2>服务器列表</h2>
+      <div class="panel-head">
+        <h2>服务器列表</h2>
+        <RouterLink
+          class="lr-btn-secondary lr-btn-sm"
+          data-testid="settings-add-server"
+          :to="{ name: 'onboarding', query: { mode: 'add' } }"
+        >
+          添加服务器
+        </RouterLink>
+      </div>
       <ul class="profiles">
         <li
           v-for="entry in profiles"
@@ -621,5 +631,12 @@ async function onSensitiveChange(lineId: string, event: Event): Promise<void> {
   margin: 0;
   font-size: var(--lr-font-sm);
   color: var(--lr-danger);
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 </style>

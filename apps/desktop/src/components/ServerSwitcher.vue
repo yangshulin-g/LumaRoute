@@ -12,6 +12,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [profileId: string]
   retry: [profileId: string]
+  add: []
 }>()
 
 function statusFor(profileId: string): ServerConnectionStatus {
@@ -25,7 +26,19 @@ function statusFor(profileId: string): ServerConnectionStatus {
     aria-label="服务器"
     data-testid="server-switcher"
   >
-    <h2>服务器</h2>
+    <div class="switcher-head">
+      <h2>服务器</h2>
+      <button
+        type="button"
+        class="add-button"
+        data-testid="add-server"
+        aria-label="添加服务器"
+        title="添加服务器"
+        @click="emit('add')"
+      >
+        +
+      </button>
+    </div>
     <ul>
       <li
         v-for="profile in profiles"
@@ -213,5 +226,36 @@ ul {
     opacity: 1;
     transform: scale(1);
   }
+}
+
+.switcher-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 0.35rem;
+}
+
+.add-button {
+  min-height: 1.5rem;
+  min-width: 1.5rem;
+  padding: 0;
+  border: 1px solid var(--lr-border-subtle);
+  border-radius: var(--lr-radius-xs);
+  background: transparent;
+  color: var(--lr-text-secondary);
+  font-size: var(--lr-font-md);
+  line-height: 1;
+  box-shadow: none;
+}
+
+.add-button:hover {
+  color: var(--lr-text-primary);
+  border-color: var(--lr-border-hover);
+  background: var(--lr-surface-hover);
+}
+
+.add-button:focus-visible {
+  outline: none;
+  box-shadow: var(--lr-focus-ring);
 }
 </style>

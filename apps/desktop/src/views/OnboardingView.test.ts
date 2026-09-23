@@ -70,4 +70,18 @@ describe('OnboardingView', () => {
     await flushPromises()
     expect(addServer).toHaveBeenCalledWith(expect.objectContaining({ lineLabel: '家里' }))
   })
+
+  it('shows cancel only in add mode and delegates it', async () => {
+    const cancel = vi.fn()
+    const wrapper = mount(OnboardingView, { props: { addServer: vi.fn(), mode: 'add', cancel } })
+    expect(wrapper.text()).toContain('添加另一台 Emby / Jellyfin 服务器')
+    await wrapper.get('[data-testid="onboarding-cancel"]').trigger('click')
+    expect(cancel).toHaveBeenCalledOnce()
+  })
+
+  it('hides cancel on first launch', () => {
+    const wrapper = mount(OnboardingView, { props: { addServer: vi.fn() } })
+    expect(wrapper.find('[data-testid="onboarding-cancel"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('连接第一台 Emby / Jellyfin 服务器')
+  })
 })
