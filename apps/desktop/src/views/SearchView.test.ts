@@ -99,6 +99,20 @@ describe('SearchView', () => {
     expect(wrapper.text()).toContain(movie.name)
   })
 
+  it('counts returned items when the server reports a zero total', async () => {
+    vi.useFakeTimers()
+    const { wrapper, media, router } = mountSearch({ activeServerId: 'profile-2' })
+    media.search.mockResolvedValue({
+      value: { items: [movie], total: 0, startIndex: 0 },
+      lineId: 'line-1',
+    })
+    await router.push({ path: '/search', query: { q: '你好' } })
+    await vi.advanceTimersByTimeAsync(250)
+    await flushPromises()
+    expect(wrapper.get('.result-title').text()).toBe('搜索「你好」· 1 条（当前服务器）')
+    expect(wrapper.get('[data-testid="media-card"]').text()).toBe(movie.name)
+  })
+
   it('points to the top search box when the route has no keyword', async () => {
     const { wrapper, media, router } = mountSearch({ activeServerId: 'profile-2' })
     await router.push('/search')

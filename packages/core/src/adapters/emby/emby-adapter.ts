@@ -116,9 +116,10 @@ export class EmbyAdapter implements AuthenticationAdapter, MediaServerAdapter {
         EnableImages: true,
       },
     })
+    const items = response.data.Items.map(mapItem)
     return {
-      items: response.data.Items.map(mapItem),
-      total: response.data.TotalRecordCount,
+      items,
+      total: Math.max(response.data.TotalRecordCount ?? 0, items.length),
       startIndex: query.startIndex,
     }
   }

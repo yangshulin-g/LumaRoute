@@ -28,7 +28,9 @@ const searchItems = computed<readonly MediaItem[]>(
 )
 
 const hasTerm = computed(() => term.value.trim().length > 0)
-const resultCount = computed(() => mediaStore.searchResults?.total ?? searchItems.value.length)
+const resultCount = computed(() =>
+  Math.max(mediaStore.searchResults?.total ?? 0, searchItems.value.length),
+)
 
 function clearDebounce(): void {
   if (debounceTimer !== null) {

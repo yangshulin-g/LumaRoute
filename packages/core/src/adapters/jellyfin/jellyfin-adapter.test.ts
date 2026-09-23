@@ -252,6 +252,18 @@ describe('JellyfinAdapter', () => {
     })
   })
 
+  it('does not trust a zero TotalRecordCount when search items are returned', async () => {
+    const transport = createEnqueueTransport()
+    transport.enqueue({ ...itemsFixture, TotalRecordCount: 0 })
+    const adapter = new JellyfinAdapter(transport)
+    const page = await adapter.search(
+      { term: 'Arrival', kinds: ['movie'], startIndex: 0, limit: 40 },
+      context,
+    )
+    expect(page.items).toHaveLength(1)
+    expect(page.total).toBe(1)
+  })
+
   it('prefers direct play and keeps authentication in headers', async () => {
     const transport = createEnqueueTransport()
     transport.enqueue(playbackInfoFixture)
