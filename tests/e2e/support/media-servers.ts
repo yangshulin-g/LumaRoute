@@ -21,6 +21,13 @@ export type MediaServerFixtures = {
 
 const FIXTURE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../fixtures')
 
+const POSTER_PNG = Uint8Array.from(
+  Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'base64',
+  ),
+)
+
 function loadJson(relativePath: string): unknown {
   return JSON.parse(readFileSync(path.join(FIXTURE_ROOT, relativePath), 'utf8'))
 }
@@ -62,6 +69,12 @@ function installJellyfinSurface(
     body: { Items: [], TotalRecordCount: 0 },
   })
   server.reply('/Items/*/PlaybackInfo', { status: 200, body: playbackInfoFixture })
+  server.reply('/Items/*/Images/Primary', {
+    status: 200,
+    bytes: POSTER_PNG,
+    contentType: 'image/png',
+    requiredToken: options.token,
+  })
   server.reply('/Sessions/Playing', { status: 204, body: {} })
   server.reply('/Sessions/Playing/Progress', { status: 204, body: {} })
   server.reply('/Sessions/Playing/Stopped', { status: 204, body: {} })

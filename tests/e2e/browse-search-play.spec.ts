@@ -32,9 +32,12 @@ test('uses the Aurora shell without widening current-server scope', async ({
 
   await page.getByTestId('library-movies').click()
   await expect(page.getByTestId('media-card').first()).toBeVisible()
-  const posterSources = await page
-    .locator('[data-testid="media-card"] img')
-    .evaluateAll((images) => images.map((image) => image.getAttribute('src') ?? ''))
-  expect(posterSources.every((source) => source === '' || source.startsWith('blob:'))).toBe(true)
+  const posters = page.locator('[data-testid="media-card"] img')
+  await expect(posters.first()).toBeVisible()
+  const posterSources = await posters.evaluateAll((images) =>
+    images.map((image) => image.getAttribute('src') ?? ''),
+  )
+  expect(posterSources.length).toBeGreaterThan(0)
+  expect(posterSources.every((source) => source.startsWith('blob:'))).toBe(true)
   expect(posterSources.join(' ')).not.toMatch(/token|api_key|X-Emby-Token/i)
 })

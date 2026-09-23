@@ -10,6 +10,9 @@ export type Reply = {
   delayMs?: number
   body?: unknown
   fixture?: string
+  bytes?: Uint8Array
+  contentType?: string
+  requiredToken?: string
 }
 
 export type RecordedRequest = {
@@ -125,7 +128,18 @@ export async function mockServer(): Promise<MockMediaServer> {
         body: { message: 'not found' },
       }
       if (reply.delayMs) await delay(reply.delayMs)
+      if (reply.requiredToken && request.headers['x-emby-token'] !== reply.requiredToken) {
+        response.statusCode = 401
+        response.setHeader('content-type', 'application/json')
+        response.end(JSON.stringify({ message: 'unauthorized' }))
+        return
+      }
       response.statusCode = reply.status ?? 200
+      if (reply.bytes) {
+        response.setHeader('content-type', reply.contentType ?? 'application/octet-stream')
+        response.end(Buffer.from(reply.bytes))
+        return
+      }
       response.setHeader('content-type', 'application/json')
       const payload =
         reply.body !== undefined
