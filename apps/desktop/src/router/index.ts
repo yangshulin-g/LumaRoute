@@ -9,11 +9,13 @@ import OnboardingView from '../views/OnboardingView.vue'
 import SearchView from '../views/SearchView.vue'
 import ServerSettingsView from '../views/ServerSettingsView.vue'
 import { useAppStore } from '../stores/app-store'
+import { useMediaStore } from '../stores/media-store'
 import { useServerStore } from '../stores/server-store'
 
-function settingsProps() {
+export function settingsProps() {
   const serverStore = useServerStore()
   const appStore = useAppStore()
+  const mediaStore = useMediaStore()
   const activeId = appStore.activeServerId
   const profile =
     serverStore.profiles.find((entry) => entry.id === activeId) ?? serverStore.profiles[0]
@@ -32,7 +34,11 @@ function settingsProps() {
       lines: [] as ServerLine[],
     },
     activeServerId: activeId,
-    activeLineId: profile?.preferredLineId ?? null,
+    activeLineId:
+      mediaStore.activeLineId &&
+      profile?.lines.some((line) => line.id === mediaStore.activeLineId)
+        ? mediaStore.activeLineId
+        : null,
     sensitiveLineIds: serverStore.sensitiveLineIds,
     diagnosticReport: (() => {
       try {
@@ -54,14 +60,11 @@ function settingsProps() {
     setLineSensitive: (lineId: string, sensitive: boolean) =>
       serverStore.setLineSensitive(lineId, sensitive),
     copyDiagnostics: async () => {
-      try {
-        const report = injectServices().diagnostics.copyableReport()
-        if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(report)
-        }
-      } catch {
-        // composition root may be unavailable in isolated tests
+      const report = injectServices().diagnostics.copyableReport()
+      if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+        throw new Error('Clipboard is unavailable')
       }
+      await navigator.clipboard.writeText(report)
     },
     updateLines: (profileId: string, lines: ServerLine[], preferredLineId: string) =>
       serverStore.updateLines(profileId, lines, preferredLineId),

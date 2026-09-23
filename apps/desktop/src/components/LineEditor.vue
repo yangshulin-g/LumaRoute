@@ -73,10 +73,16 @@ function submit(): void {
 .line-editor {
   display: grid;
   gap: 0.75rem;
-  padding: 0.9rem;
-  border: 1px dashed var(--lr-border);
-  border-radius: var(--lr-radius-sm);
-  background: var(--lr-canvas);
+  padding: 0.95rem;
+  border: 1px dashed var(--lr-border-strong);
+  border-radius: var(--lr-radius-md);
+  background: var(--lr-surface-card-solid);
+  transition: border-color var(--lr-ease);
+}
+
+.line-editor:hover,
+.line-editor:focus-within {
+  border-color: var(--lr-border-hover);
 }
 
 .fields {

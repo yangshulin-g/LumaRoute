@@ -40,6 +40,7 @@ function mountSettings(options: {
   updateLines?: ReturnType<typeof vi.fn>
   renameServer?: ReturnType<typeof vi.fn>
   activeServerId?: string | null
+  activeLineId?: string | null
 }) {
   const selectServer = options.selectServer ?? vi.fn().mockResolvedValue(undefined)
   const reorderServers = options.reorderServers ?? vi.fn().mockResolvedValue(undefined)
@@ -57,7 +58,8 @@ function mountSettings(options: {
       profiles: options.profiles,
       profile: activeProfile,
       activeServerId,
-      activeLineId: activeProfile.preferredLineId,
+      activeLineId:
+        options.activeLineId === undefined ? activeProfile.preferredLineId : options.activeLineId,
       selectServer: selectServer as (profileId: string) => Promise<void>,
       reorderServers: reorderServers as (profileIds: readonly string[]) => Promise<void>,
       deleteServer: deleteServer as (profileId: string) => Promise<void>,
@@ -117,5 +119,34 @@ describe('ServerSettingsView', () => {
     expect(deleteServer).not.toHaveBeenCalled()
     await wrapper.get('[data-testid="confirm-delete-yes"]').trigger('click')
     expect(deleteServer).toHaveBeenCalledWith('profile-2')
+  })
+
+  it('renders only stored and session-derived line facts', () => {
+    const { wrapper } = mountSettings({
+      profiles: [profileOne],
+      activeServerId: 'profile-1',
+      activeLineId: 'line-2',
+    })
+    const lan = wrapper.get('[data-testid="line-item-line-1"]')
+    const wan = wrapper.get('[data-testid="line-item-line-2"]')
+    expect(lan.text()).toContain('HTTP')
+    expect(lan.text()).toContain('首选线路')
+    expect(lan.text()).not.toContain('当前线路')
+    expect(wan.text()).toContain('HTTPS')
+    expect(wan.text()).toContain('当前线路')
+    expect(wrapper.text()).not.toMatch(/\d+ms|丢包|QUIC|gRPC/)
+  })
+
+  it('never calls the preferred line current without a session line', () => {
+    const { wrapper } = mountSettings({
+      profiles: [profileOne],
+      activeServerId: 'profile-1',
+      activeLineId: null,
+    })
+    expect(wrapper.get('[data-testid="line-item-line-1"]').text()).toContain('首选线路')
+    expect(wrapper.get('[data-testid="line-item-line-1"]').text()).not.toContain('当前线路')
+    const summary = wrapper.get('[data-testid="active-line"]').text()
+    expect(summary).not.toContain('当前线路：LAN')
+    expect(summary).toContain('首选线路：LAN')
   })
 })

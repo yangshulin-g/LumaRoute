@@ -4,6 +4,7 @@ import type { ServerLine, ServerProfile } from '@lumaroute/core'
 import DiagnosticPanel from '../components/DiagnosticPanel.vue'
 import LineEditor from '../components/LineEditor.vue'
 import LineStatus from '../components/LineStatus.vue'
+import { lineProtocol, lineStateLabels, resolveLine } from '../presentation/line-presenters'
 import { CONNECTION_STATUS_LEGEND } from '../stores/connection-status-label'
 import { toLineStatusReason, type LineStatusState } from '../stores/line-status'
 
@@ -34,22 +35,15 @@ const props = defineProps<{
 const markedSensitive = computed(() => new Set(props.sensitiveLineIds ?? []))
 
 const lineStatus = ref<LineStatusState>({ state: 'idle' })
-const selectedLineId = ref(props.activeLineId ?? props.profile.preferredLineId)
+const preferredLineId = ref(props.profile.preferredLineId)
 const pendingDeleteId = ref<string | null>(null)
 const draftName = ref(props.profile.name)
 
 watch(
-  () => props.activeLineId,
-  (value) => {
-    if (value) selectedLineId.value = value
-  },
-)
-
-watch(
-  () => props.profile.id,
-  () => {
-    selectedLineId.value = props.activeLineId ?? props.profile.preferredLineId
-    draftName.value = props.profile.name
+  () => [props.profile.id, props.profile.preferredLineId] as const,
+  ([profileId], [previousProfileId]) => {
+    preferredLineId.value = props.profile.preferredLineId
+    if (profileId !== previousProfileId) draftName.value = props.profile.name
   },
 )
 
@@ -60,12 +54,21 @@ watch(
   },
 )
 
-const activeLineLabel = computed(() => {
-  const line =
-    props.profile.lines.find((entry) => entry.id === selectedLineId.value) ??
-    props.profile.lines.find((entry) => entry.id === props.profile.preferredLineId)
-  return line?.label ?? '未知'
-})
+const activeLineLabel = computed(
+  () => resolveLine(props.profile, props.activeLineId)?.label ?? null,
+)
+
+const preferredLineLabel = computed(
+  () =>
+    resolveLine(props.profile, preferredLineId.value)?.label ??
+    resolveLine(props.profile, props.profile.preferredLineId)?.label ??
+    null,
+)
+
+const labelledProfile = computed<ServerProfile>(() => ({
+  ...props.profile,
+  preferredLineId: preferredLineId.value,
+}))
 
 const sortedLines = computed(() =>
   [...props.profile.lines].sort((left, right) => left.priority - right.priority),
@@ -86,7 +89,7 @@ async function onAddLine(draft: ServerLine): Promise<void> {
 
 async function preferLine(lineId: string): Promise<void> {
   await props.setPreferredLine(props.profile.id, lineId)
-  selectedLineId.value = lineId
+  preferredLineId.value = lineId
 }
 
 async function moveProfileUp(profileId: string): Promise<void> {
@@ -232,10 +235,11 @@ async function onSensitiveChange(lineId: string, event: Event): Promise<void> {
         >
       </label>
       <p
-        class="lr-muted"
+        class="lr-muted line-summary"
         data-testid="active-line"
       >
-        当前线路：{{ activeLineLabel }}
+        <span>当前线路：{{ activeLineLabel ?? '尚无活动线路' }}</span>
+        <span v-if="preferredLineLabel">首选线路：{{ preferredLineLabel }}</span>
       </p>
 
       <h3>线路</h3>
@@ -246,12 +250,27 @@ async function onSensitiveChange(lineId: string, event: Event): Promise<void> {
         <li
           v-for="line in sortedLines"
           :key="line.id"
-          class="line-row"
+          class="line-node lr-glass-card"
+          :data-disabled="line.enabled ? undefined : 'true'"
           :data-testid="`line-item-${line.id}`"
         >
-          <div class="line-meta">
-            <span class="line-label">{{ line.label }}</span>
-            <span class="line-url lr-muted">{{ line.baseUrl }}</span>
+          <div class="line-node-head">
+            <strong class="line-label">{{ line.label }}</strong>
+            <span class="protocol-chip">{{ lineProtocol(line) }}</span>
+          </div>
+          <span class="line-url lr-muted">{{ line.baseUrl }}</span>
+          <div
+            v-if="lineStateLabels(line, labelledProfile, activeLineId).length"
+            class="state-chips"
+          >
+            <span
+              v-for="label in lineStateLabels(line, labelledProfile, activeLineId)"
+              :key="label"
+              class="state-chip"
+              :data-state="label"
+            >
+              {{ label }}
+            </span>
           </div>
           <div class="line-actions">
             <button
@@ -358,14 +377,88 @@ async function onSensitiveChange(lineId: string, event: Event): Promise<void> {
   gap: 0.5rem;
 }
 
-.profile-row,
-.line-row {
+.profile-row {
   display: grid;
   gap: 0.55rem;
   padding: 0.8rem 0.85rem;
   border: 1px solid var(--lr-border);
   border-radius: var(--lr-radius-sm);
   background: var(--lr-canvas);
+}
+
+.line-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin: 0;
+}
+
+.lines {
+  gap: 0.65rem;
+}
+
+.line-node {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: var(--lr-radius-md);
+  transition: border-color var(--lr-ease);
+}
+
+.line-node:hover,
+.line-node:focus-within {
+  border-color: var(--lr-border-hover);
+}
+
+.line-node[data-disabled='true'] .line-node-head,
+.line-node[data-disabled='true'] .line-url {
+  opacity: 0.6;
+}
+
+.line-node-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.protocol-chip,
+.state-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--lr-border-strong);
+  font-size: var(--lr-font-xs);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--lr-text-secondary);
+}
+
+.protocol-chip {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.04em;
+}
+
+.state-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.state-chip[data-state='当前线路'] {
+  color: var(--lr-accent);
+  border-color: color-mix(in srgb, var(--lr-accent) 45%, transparent);
+  background: var(--lr-accent-soft);
+}
+
+.state-chip[data-state='首选线路'] {
+  color: var(--lr-accent-purple);
+  border-color: color-mix(in srgb, var(--lr-accent-purple) 45%, transparent);
+}
+
+.state-chip[data-state='已禁用'] {
+  color: var(--lr-text-muted);
 }
 
 .profile-row {
@@ -402,12 +495,6 @@ async function onSensitiveChange(lineId: string, event: Event): Promise<void> {
   flex-wrap: wrap;
   gap: 0.35rem;
   align-items: center;
-}
-
-.line-meta {
-  display: grid;
-  gap: 0.15rem;
-  min-width: 0;
 }
 
 .line-label {
