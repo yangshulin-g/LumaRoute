@@ -47,7 +47,9 @@ watch(
 )
 
 function onSearchShortcut(event: KeyboardEvent): void {
-  if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'k') return
+  if (event.isComposing || !(event.metaKey || event.ctrlKey)) return
+  const isK = event.code ? event.code === 'KeyK' : event.key.toLowerCase() === 'k'
+  if (!isK) return
   event.preventDefault()
   searchInput.value?.focus()
 }
@@ -247,7 +249,7 @@ aside {
   padding: 0 0.7rem;
   font-size: 0.6875rem;
   line-height: 1.35;
-  color: var(--lr-text-muted);
+  color: var(--lr-text-tertiary);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;

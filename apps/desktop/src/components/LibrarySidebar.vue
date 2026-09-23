@@ -89,7 +89,7 @@ h2 {
   font-weight: 650;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--lr-text-muted);
+  color: var(--lr-text-tertiary);
 }
 
 p {

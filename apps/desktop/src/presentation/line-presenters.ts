@@ -8,8 +8,16 @@ export function resolveLine(
   return profile.lines.find((line) => line.id === lineId) ?? null
 }
 
-export function lineProtocol(line: ServerLine): 'HTTP' | 'HTTPS' {
-  return new URL(line.baseUrl).protocol === 'https:' ? 'HTTPS' : 'HTTP'
+export function lineProtocol(line: ServerLine): 'HTTP' | 'HTTPS' | null {
+  let protocol: string
+  try {
+    protocol = new URL(line.baseUrl).protocol
+  } catch {
+    return null
+  }
+  if (protocol === 'https:') return 'HTTPS'
+  if (protocol === 'http:') return 'HTTP'
+  return null
 }
 
 export function lineStateLabels(

@@ -113,6 +113,8 @@ describe('HomeView', () => {
     expect(wrapper.find('[data-testid="recommendations"]').exists()).toBe(false)
     expect(wrapper.get('[data-testid="continue-progress"]').text()).toBe('2%')
     expect(wrapper.get('[data-testid="library-bento-lib-1"]').text()).toContain('Movies')
+    expect(wrapper.get('[data-testid="library-bento-lib-1"]').text()).toContain('电影')
+    expect(wrapper.get('[data-testid="library-bento-lib-1"]').text()).not.toContain('movies')
   })
 
   it('shows a loading state before the parent probe finishes', async () => {

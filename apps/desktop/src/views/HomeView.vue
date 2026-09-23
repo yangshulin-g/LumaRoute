@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import ContinueWatchingCard from '../components/ContinueWatchingCard.vue'
 import { resolveLine } from '../presentation/line-presenters'
+import { collectionTypeLabel } from '../presentation/media-presenters'
 import { useAppStore } from '../stores/app-store'
 import { useMediaStore } from '../stores/media-store'
 import { useServerStore } from '../stores/server-store'
@@ -143,7 +144,7 @@ const connectionLabel = computed(() => connectionLabels[status.value])
               class="lr-glass-card library-entry"
             >
               <span class="library-name">{{ library.name }}</span>
-              <span class="lr-muted library-type">{{ library.collectionType ?? '媒体库' }}</span>
+              <span class="lr-muted library-type">{{ collectionTypeLabel(library.collectionType) }}</span>
             </RouterLink>
           </div>
         </section>

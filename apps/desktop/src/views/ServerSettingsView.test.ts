@@ -137,6 +137,19 @@ describe('ServerSettingsView', () => {
     expect(wrapper.text()).not.toMatch(/\d+ms|丢包|QUIC|gRPC/)
   })
 
+  it('omits the protocol chip for a line with an unparseable base URL', () => {
+    const broken: ServerProfile = {
+      ...profileOne,
+      lines: [
+        profileOne.lines[0]!,
+        { id: 'line-2', label: 'Broken', baseUrl: 'not a url', priority: 1, enabled: true },
+      ],
+    }
+    const { wrapper } = mountSettings({ profiles: [broken], activeServerId: 'profile-1' })
+    expect(wrapper.get('[data-testid="line-item-line-1"] .protocol-chip').text()).toBe('HTTP')
+    expect(wrapper.find('[data-testid="line-item-line-2"] .protocol-chip').exists()).toBe(false)
+  })
+
   it('never calls the preferred line current without a session line', () => {
     const { wrapper } = mountSettings({
       profiles: [profileOne],

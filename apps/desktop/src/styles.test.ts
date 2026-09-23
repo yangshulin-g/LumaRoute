@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import styles from './styles.css?raw'
+import mediaCardSource from './components/MediaCard.vue?raw'
 
 describe('Aurora global styles', () => {
   it('defines dark native-CSS tokens and glass fallback without Tailwind', () => {
@@ -29,5 +30,20 @@ describe('Aurora global styles', () => {
   it('disables decorative motion when the user requests reduced motion', () => {
     expect(styles).toContain('@media (prefers-reduced-motion: reduce)')
     expect(styles).toContain('animation-duration: 0.01ms')
+  })
+
+  it('keeps informational tertiary text at secondary contrast and muted for placeholders only', () => {
+    expect(styles).toContain('--lr-text-muted: #64748b')
+    expect(styles).toContain('--lr-text-secondary: #94a3b8')
+    expect(styles).toContain('--lr-text-tertiary: var(--lr-text-secondary)')
+    expect(styles).not.toContain('--lr-text-tertiary: var(--lr-text-muted)')
+    const placeholderAt = styles.indexOf('input::placeholder')
+    const placeholderRule = styles.slice(placeholderAt, styles.indexOf('}', placeholderAt))
+    expect(placeholderRule).toContain('color: var(--lr-text-muted)')
+  })
+
+  it('keeps media card kind chips opaque without per-card backdrop blur', () => {
+    expect(mediaCardSource).toContain('.kind-chip')
+    expect(mediaCardSource).not.toContain('backdrop-filter')
   })
 })

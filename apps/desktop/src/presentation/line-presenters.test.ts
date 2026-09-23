@@ -28,4 +28,10 @@ describe('line presenters', () => {
     expect(lineProtocol(profile.lines[1]!)).toBe('HTTPS')
     expect(lineStateLabels(profile.lines[1]!, profile, 'line-2')).toEqual(['当前线路', '已禁用'])
   })
+
+  it('returns null instead of throwing for an unparseable base URL', () => {
+    const broken = { ...profile.lines[0]!, baseUrl: 'not a url' }
+    expect(() => lineProtocol(broken)).not.toThrow()
+    expect(lineProtocol(broken)).toBeNull()
+  })
 })

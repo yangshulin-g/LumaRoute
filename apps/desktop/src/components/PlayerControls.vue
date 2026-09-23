@@ -72,8 +72,8 @@ async function onSeek(event: Event): Promise<void> {
         data-testid="playback-facts"
       >
         <span
-          v-for="fact in planFacts"
-          :key="fact"
+          v-for="(fact, index) in planFacts"
+          :key="`${index}-${fact}`"
           class="fact-chip"
         >{{ fact }}</span>
         <span

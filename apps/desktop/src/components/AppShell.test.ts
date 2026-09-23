@@ -167,4 +167,36 @@ describe('AppShell home content', () => {
     expect(input.getAttribute('placeholder')).toBe('搜索当前服务器')
     wrapper.unmount()
   })
+
+  it('focuses current-server search on Meta+K using the physical key code', async () => {
+    const { wrapper } = await mountPopulatedShell()
+    const input = wrapper.get('[data-testid="current-server-search"]').element as HTMLInputElement
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'л', code: 'KeyK', metaKey: true }))
+    expect(document.activeElement).toBe(input)
+    wrapper.unmount()
+  })
+
+  it('ignores the search shortcut while an IME composition is active', async () => {
+    const { wrapper } = await mountPopulatedShell()
+    const input = wrapper.get('[data-testid="current-server-search"]').element as HTMLInputElement
+    input.blur()
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'k', code: 'KeyK', metaKey: true, isComposing: true }),
+    )
+    expect(document.activeElement).not.toBe(input)
+    wrapper.unmount()
+  })
+
+  it('reflects a non-healthy connection status on the HUD pill', async () => {
+    const { wrapper, app, services } = await mountPopulatedShell()
+    vi.mocked(services.media.getLibraries).mockRejectedValueOnce(new Error('offline'))
+    await app.runWithContext(async () => {
+      await useMediaStore().loadHome(profile.id)
+    })
+    await flushPromises()
+    expect(wrapper.get('[data-testid="line-status-pill"]').attributes('data-status')).toBe(
+      'unhealthy',
+    )
+    wrapper.unmount()
+  })
 })

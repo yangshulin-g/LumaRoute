@@ -29,7 +29,7 @@
   --lr-border: var(--lr-border-subtle);
   --lr-border-strong: rgb(255 255 255 / 16%);
   --lr-text: var(--lr-text-primary);
-  --lr-text-tertiary: var(--lr-text-muted);
+  --lr-text-tertiary: var(--lr-text-secondary);
   --lr-accent: var(--lr-accent-cyan);
   --lr-accent-hover: #22d3ee;
   --lr-accent-soft: rgb(6 182 212 / 14%);
@@ -312,13 +312,13 @@ input[type="search"]::-webkit-search-cancel-button {
   appearance: none;
   width: 0.85rem;
   height: 0.85rem;
-  background: radial-gradient(circle at center, var(--lr-text-tertiary) 35%, transparent 36%);
+  background: radial-gradient(circle at center, var(--lr-text-muted) 35%, transparent 36%);
   cursor: pointer;
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: var(--lr-text-tertiary);
+  color: var(--lr-text-muted);
 }
 
 select {

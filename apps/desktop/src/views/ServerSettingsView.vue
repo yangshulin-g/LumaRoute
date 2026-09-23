@@ -256,7 +256,10 @@ async function onSensitiveChange(lineId: string, event: Event): Promise<void> {
         >
           <div class="line-node-head">
             <strong class="line-label">{{ line.label }}</strong>
-            <span class="protocol-chip">{{ lineProtocol(line) }}</span>
+            <span
+              v-if="lineProtocol(line)"
+              class="protocol-chip"
+            >{{ lineProtocol(line) }}</span>
           </div>
           <span class="line-url lr-muted">{{ line.baseUrl }}</span>
           <div
@@ -458,7 +461,7 @@ async function onSensitiveChange(lineId: string, event: Event): Promise<void> {
 }
 
 .state-chip[data-state='已禁用'] {
-  color: var(--lr-text-muted);
+  color: var(--lr-text-tertiary);
 }
 
 .profile-row {

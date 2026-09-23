@@ -153,14 +153,6 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .kind-chip {
-    background: var(--lr-surface-card);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-  }
-}
-
 .media-card:hover .title {
   color: var(--lr-accent-cyan);
 }

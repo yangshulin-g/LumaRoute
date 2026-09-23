@@ -67,7 +67,7 @@ progress::-moz-progress-bar {
 
 .progress-value {
   font-size: var(--lr-font-xs);
-  color: var(--lr-text-muted);
+  color: var(--lr-text-tertiary);
   font-variant-numeric: tabular-nums;
 }
 </style>
