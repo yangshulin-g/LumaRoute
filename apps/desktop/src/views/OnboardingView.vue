@@ -55,7 +55,7 @@ async function submit(): Promise<void> {
 
 <template>
   <section class="onboarding-page">
-    <div class="onboarding lr-card">
+    <div class="onboarding lr-glass-card">
       <header>
         <p class="eyebrow">
           LumaRoute
@@ -151,8 +151,10 @@ async function submit(): Promise<void> {
   place-items: center;
   padding: 1.75rem 1.25rem;
   background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, color-mix(in srgb, var(--lr-accent) 12%, transparent), transparent),
-    var(--lr-canvas);
+    radial-gradient(ellipse 60% 45% at 15% 10%, rgb(6 182 212 / 18%), transparent 70%),
+    radial-gradient(ellipse 55% 40% at 85% 20%, rgb(139 92 246 / 16%), transparent 70%),
+    radial-gradient(ellipse 70% 50% at 50% 110%, rgb(59 130 246 / 14%), transparent 70%),
+    var(--lr-bg-base);
 }
 
 .onboarding {
@@ -162,7 +164,9 @@ async function submit(): Promise<void> {
   padding: 1.85rem 1.6rem 1.7rem;
   text-align: left;
   border-radius: var(--lr-radius-lg);
-  box-shadow: var(--lr-shadow-md);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 8%),
+    var(--lr-shadow-md);
 }
 
 header {
@@ -203,6 +207,6 @@ form {
   word-break: break-word;
   padding: 0.65rem 0.75rem;
   border-radius: var(--lr-radius-sm);
-  background: var(--lr-canvas);
+  background: var(--lr-surface-muted);
 }
 </style>

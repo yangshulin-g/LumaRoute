@@ -7,5 +7,6 @@ export default defineConfig({
     name: 'desktop',
     environment: 'happy-dom',
     include: ['src/**/*.test.ts'],
+    css: { include: [/styles\.css/] },
   },
 })
