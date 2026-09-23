@@ -8,6 +8,7 @@ import LineStatus from '../components/LineStatus.vue'
 import { lineProtocol, lineStateLabels, resolveLine } from '../presentation/line-presenters'
 import { CONNECTION_STATUS_LEGEND } from '../stores/connection-status-label'
 import { toLineStatusReason, type LineStatusState } from '../stores/line-status'
+import { reauthErrorMessage } from './reauth-error-message'
 
 const props = defineProps<{
   profiles: readonly ServerProfile[]
@@ -31,6 +32,8 @@ const props = defineProps<{
     lines: ServerLine[],
     preferredLineId: string,
   ) => Promise<void> | void
+  reauthOpen?: boolean
+  reauthenticate?: (profileId: string, password: string) => Promise<void>
 }>()
 
 const markedSensitive = computed(() => new Set(props.sensitiveLineIds ?? []))
@@ -42,12 +45,58 @@ const draftName = ref(props.profile.name)
 const editingLineId = ref<string | null>(null)
 const lineLabelDraft = ref('')
 const lineRenameError = ref<string | null>(null)
+const reauthExpanded = ref(props.reauthOpen ?? false)
+const reauthPassword = ref('')
+const reauthSubmitting = ref(false)
+const reauthStatus = ref<string | null>(null)
+const reauthError = ref<string | null>(null)
+
+function openReauth(): void {
+  reauthExpanded.value = true
+  reauthStatus.value = null
+  reauthError.value = null
+}
+
+function resetReauth(): void {
+  reauthExpanded.value = false
+  reauthPassword.value = ''
+  reauthStatus.value = null
+  reauthError.value = null
+}
+
+async function submitReauth(): Promise<void> {
+  const password = reauthPassword.value
+  reauthPassword.value = ''
+  if (!props.reauthenticate || !password) return
+  reauthSubmitting.value = true
+  reauthStatus.value = null
+  reauthError.value = null
+  try {
+    await props.reauthenticate(props.profile.id, password)
+    reauthExpanded.value = false
+    reauthStatus.value = '已重新登录'
+  } catch (error) {
+    reauthError.value = reauthErrorMessage(error)
+  } finally {
+    reauthSubmitting.value = false
+  }
+}
 
 watch(
   () => [props.profile.id, props.profile.preferredLineId] as const,
   ([profileId], [previousProfileId]) => {
     preferredLineId.value = props.profile.preferredLineId
-    if (profileId !== previousProfileId) draftName.value = props.profile.name
+    if (profileId !== previousProfileId) {
+      draftName.value = props.profile.name
+      resetReauth()
+    }
+  },
+)
+
+watch(
+  () => props.reauthOpen,
+  (open) => {
+    if (open) openReauth()
   },
 )
 
@@ -411,6 +460,83 @@ async function onSensitiveChange(lineId: string, event: Event): Promise<void> {
     </section>
 
     <section
+      id="account"
+      class="panel account"
+      data-testid="account-section"
+      aria-labelledby="account-heading"
+    >
+      <h2 id="account-heading">
+        账号
+      </h2>
+      <p class="account-user">
+        <span class="lr-muted">用户名</span>
+        <strong data-testid="account-username">{{ profile.username }}</strong>
+      </p>
+      <button
+        v-if="!reauthExpanded"
+        type="button"
+        class="lr-btn-secondary lr-btn-sm account-action"
+        data-testid="reauth-open"
+        :disabled="!reauthenticate"
+        @click="openReauth"
+      >
+        重新登录
+      </button>
+      <form
+        v-else
+        class="reauth-form"
+        data-testid="reauth-form"
+        @submit.prevent="submitReauth"
+      >
+        <label class="lr-field">
+          <span>密码</span>
+          <input
+            v-model="reauthPassword"
+            name="reauth-password"
+            type="password"
+            autocomplete="current-password"
+            required
+          >
+        </label>
+        <div class="confirm-actions">
+          <button
+            type="submit"
+            class="lr-btn-primary lr-btn-sm"
+            data-testid="reauth-submit"
+            :disabled="reauthSubmitting"
+          >
+            {{ reauthSubmitting ? '登录中…' : '登录' }}
+          </button>
+          <button
+            type="button"
+            class="lr-btn-secondary lr-btn-sm"
+            data-testid="reauth-cancel"
+            :disabled="reauthSubmitting"
+            @click="resetReauth"
+          >
+            取消
+          </button>
+        </div>
+      </form>
+      <p
+        v-if="reauthStatus"
+        class="reauth-status"
+        role="status"
+        data-testid="reauth-status"
+      >
+        {{ reauthStatus }}
+      </p>
+      <p
+        v-if="reauthError"
+        class="lr-alert lr-alert-danger"
+        role="alert"
+        data-testid="reauth-error"
+      >
+        {{ reauthError }}
+      </p>
+    </section>
+
+    <section
       v-if="diagnosticReport"
       class="panel"
     >
@@ -638,5 +764,28 @@ async function onSensitiveChange(lineId: string, event: Event): Promise<void> {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+}
+
+.account-user {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  margin: 0;
+}
+
+.account-action {
+  justify-self: start;
+}
+
+.reauth-form {
+  display: grid;
+  gap: 0.65rem;
+  max-width: 22rem;
+}
+
+.reauth-status {
+  margin: 0;
+  color: var(--lr-success);
+  font-size: var(--lr-font-sm);
 }
 </style>

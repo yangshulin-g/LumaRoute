@@ -3,6 +3,9 @@ import { AppError } from '@lumaroute/core'
 /** Per-server reachability as observed by home/library probes. */
 export type ServerConnectionStatus = 'unknown' | 'checking' | 'healthy' | 'unhealthy'
 
+export const USER_MISMATCH_MESSAGE =
+  '该账号不是此服务器配置的用户。如需使用其他账号，请作为新服务器添加。'
+
 export function isAbortError(error: unknown): boolean {
   if (error instanceof DOMException && error.name === 'AbortError') return true
   if (error instanceof Error && error.name === 'AbortError') return true
@@ -13,6 +16,8 @@ export function isAbortError(error: unknown): boolean {
 export function connectionErrorMessage(error: unknown): string {
   const code = errorField(error, 'code')
   const detail = errorText(error)
+
+  if (code === 'UserMismatch') return USER_MISMATCH_MESSAGE
 
   if (error instanceof AppError) {
     switch (error.code) {

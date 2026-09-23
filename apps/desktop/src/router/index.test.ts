@@ -49,6 +49,18 @@ describe('settingsProps', () => {
     useAppStore().activeServerId = null
     expect(settingsProps().profile).toBeNull()
   })
+
+  it('opens the account form only when routed with reauth=1', () => {
+    expect(settingsProps().reauthOpen).toBe(false)
+    expect(settingsProps({ query: { reauth: '1' } }).reauthOpen).toBe(true)
+  })
+
+  it('delegates re-authentication to the server store', async () => {
+    const store = useServerStore()
+    const reauthenticate = vi.spyOn(store, 'reauthenticate').mockResolvedValue(undefined)
+    await settingsProps().reauthenticate('profile-1', 'new-password')
+    expect(reauthenticate).toHaveBeenCalledWith('profile-1', 'new-password')
+  })
 })
 
 describe('createAppRouter', () => {

@@ -179,4 +179,17 @@ describe('useMediaStore', () => {
       expect(store.activeLineId).toBe('line-2')
     })
   })
+
+  it('resets a server connection entry back to unknown', async () => {
+    const harness = createMediaStoreHarness({
+      getLibraries: vi.fn().mockRejectedValue(new AppError('AuthenticationExpired', 'rejected')),
+    })
+    await harness.withStore(async (store) => {
+      await store.loadHome('profile-1')
+      expect(store.connectionStatus('profile-1')).toBe('unhealthy')
+      store.resetConnection('profile-1')
+      expect(store.connectionStatus('profile-1')).toBe('unknown')
+      expect(store.connectionError('profile-1')).toBeNull()
+    })
+  })
 })

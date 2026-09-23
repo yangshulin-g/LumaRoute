@@ -1,7 +1,7 @@
 import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import ServerSettingsView from './ServerSettingsView.vue'
-import type { ServerProfile } from '@lumaroute/core'
+import { AppError, type ServerProfile } from '@lumaroute/core'
 
 const profileOne: ServerProfile = {
   id: 'profile-1',
@@ -39,6 +39,8 @@ function mountSettings(options: {
   setPreferredLine?: ReturnType<typeof vi.fn>
   updateLines?: ReturnType<typeof vi.fn>
   renameServer?: ReturnType<typeof vi.fn>
+  reauthenticate?: ReturnType<typeof vi.fn>
+  reauthOpen?: boolean
   activeServerId?: string | null
   activeLineId?: string | null
 }) {
@@ -49,6 +51,7 @@ function mountSettings(options: {
   const setPreferredLine = options.setPreferredLine ?? vi.fn().mockResolvedValue(undefined)
   const updateLines = options.updateLines ?? vi.fn().mockResolvedValue(undefined)
   const renameServer = options.renameServer ?? vi.fn().mockResolvedValue(undefined)
+  const reauthenticate = options.reauthenticate ?? vi.fn().mockResolvedValue(undefined)
   const activeServerId = options.activeServerId ?? options.profiles[0]?.id ?? null
   const activeProfile =
     options.profiles.find((profile) => profile.id === activeServerId) ?? options.profiles[0]!
@@ -74,6 +77,8 @@ function mountSettings(options: {
         preferredLineId: string,
       ) => Promise<void>,
       renameServer: renameServer as (profileId: string, name: string) => Promise<void>,
+      reauthOpen: options.reauthOpen ?? false,
+      reauthenticate: reauthenticate as (profileId: string, password: string) => Promise<void>,
       saveProfile: vi.fn() as unknown as (profile: ServerProfile) => Promise<void>,
     },
     global: { stubs: { RouterLink: RouterLinkStub } },
@@ -88,6 +93,7 @@ function mountSettings(options: {
     setPreferredLine,
     updateLines,
     renameServer,
+    reauthenticate,
   }
 }
 
@@ -196,5 +202,59 @@ describe('ServerSettingsView', () => {
     expect(link.props('to')).toEqual({ name: 'onboarding', query: { mode: 'add' } })
     expect(link.text()).toBe('添加服务器')
     expect(link.attributes('data-testid')).toBe('settings-add-server')
+  })
+
+  it('re-authenticates the configured account and clears the password', async () => {
+    const { wrapper, reauthenticate } = mountSettings({ profiles: [profileOne] })
+    expect(wrapper.get('[data-testid="account-username"]').text()).toBe('alice')
+    expect(wrapper.find('input[name="reauth-username"]').exists()).toBe(false)
+    expect(wrapper.find('input[name="reauth-password"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="reauth-open"]').trigger('click')
+    const password = wrapper.get('input[name="reauth-password"]')
+    await password.setValue('new-password')
+    await wrapper.get('[data-testid="reauth-form"]').trigger('submit')
+    expect((password.element as HTMLInputElement).value).toBe('')
+    await flushPromises()
+    expect(reauthenticate).toHaveBeenCalledWith('profile-1', 'new-password')
+    expect(wrapper.get('[data-testid="reauth-status"]').text()).toBe('已重新登录')
+    expect(wrapper.find('input[name="reauth-password"]').exists()).toBe(false)
+  })
+
+  it('shows mapped guidance and clears the password when the account does not match', async () => {
+    const { wrapper } = mountSettings({
+      profiles: [profileOne],
+      reauthenticate: vi
+        .fn()
+        .mockRejectedValue(new AppError('UserMismatch', 'The account does not match this server profile')),
+    })
+    await wrapper.get('[data-testid="reauth-open"]').trigger('click')
+    await wrapper.get('input[name="reauth-password"]').setValue('other-password')
+    await wrapper.get('[data-testid="reauth-form"]').trigger('submit')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="reauth-error"]').text()).toBe(
+      '该账号不是此服务器配置的用户。如需使用其他账号，请作为新服务器添加。',
+    )
+    expect(
+      (wrapper.get('input[name="reauth-password"]').element as HTMLInputElement).value,
+    ).toBe('')
+    expect(wrapper.find('[data-testid="reauth-status"]').exists()).toBe(false)
+  })
+
+  it('opens the account form directly when routed from an expired credential', () => {
+    const { wrapper } = mountSettings({ profiles: [profileOne], reauthOpen: true })
+    expect(wrapper.find('input[name="reauth-password"]').exists()).toBe(true)
+  })
+
+  it('cancels re-login and discards the typed password', async () => {
+    const { wrapper, reauthenticate } = mountSettings({ profiles: [profileOne] })
+    await wrapper.get('[data-testid="reauth-open"]').trigger('click')
+    await wrapper.get('input[name="reauth-password"]').setValue('typed')
+    await wrapper.get('[data-testid="reauth-cancel"]').trigger('click')
+    expect(wrapper.find('input[name="reauth-password"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="reauth-open"]').trigger('click')
+    expect(
+      (wrapper.get('input[name="reauth-password"]').element as HTMLInputElement).value,
+    ).toBe('')
+    expect(reauthenticate).not.toHaveBeenCalled()
   })
 })

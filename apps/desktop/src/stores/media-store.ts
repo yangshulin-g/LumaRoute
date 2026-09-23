@@ -39,6 +39,12 @@ export const useMediaStore = defineStore('media', () => {
     connections.value = { ...connections.value, [profileId]: entry }
   }
 
+  function resetConnection(profileId: string): void {
+    const next = { ...connections.value }
+    delete next[profileId]
+    connections.value = next
+  }
+
   async function loadHome(serverId: string, signal?: AbortSignal): Promise<void> {
     const services = injectServices()
     const generation = ++homeGeneration
@@ -130,6 +136,7 @@ export const useMediaStore = defineStore('media', () => {
     activeLineId,
     connectionStatus,
     connectionError,
+    resetConnection,
     loadHome,
     loadLibraryPage,
     searchCurrentServer,

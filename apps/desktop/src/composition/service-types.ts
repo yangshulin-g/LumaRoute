@@ -25,6 +25,9 @@ export interface QueryClientPort {
   cancelQueries(filters: {
     predicate: (query: { queryKey: readonly unknown[] }) => boolean
   }): Promise<void>
+  invalidateQueries(filters: {
+    predicate: (query: { queryKey: readonly unknown[] }) => boolean
+  }): Promise<void>
 }
 
 export interface AppServices {

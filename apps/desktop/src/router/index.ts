@@ -18,7 +18,7 @@ import { useAppStore } from '../stores/app-store'
 import { useMediaStore } from '../stores/media-store'
 import { useServerStore } from '../stores/server-store'
 
-export function settingsProps() {
+export function settingsProps(route?: Pick<RouteLocationNormalizedLoaded, 'query'>) {
   const serverStore = useServerStore()
   const appStore = useAppStore()
   const mediaStore = useMediaStore()
@@ -30,6 +30,9 @@ export function settingsProps() {
     profiles: serverStore.profiles,
     profile,
     activeServerId: activeId,
+    reauthOpen: route?.query.reauth === '1',
+    reauthenticate: (profileId: string, password: string) =>
+      serverStore.reauthenticate(profileId, password),
     activeLineId:
       mediaStore.activeLineId &&
       profile?.lines.some((line) => line.id === mediaStore.activeLineId)

@@ -4,6 +4,7 @@ import type { ServerLine, ServerProfile } from '@lumaroute/core'
 import { injectServices } from '../composition/inject-services'
 import type { OnboardingInput } from '../composition/service-types'
 import { useAppStore } from './app-store'
+import { useMediaStore } from './media-store'
 import { toLineStatusReason, type LineStatusState } from './line-status'
 
 export const useServerStore = defineStore('servers', () => {
@@ -99,6 +100,18 @@ export const useServerStore = defineStore('servers', () => {
     replaceProfile(updated)
   }
 
+  async function reauthenticate(profileId: string, password: string): Promise<void> {
+    const services = injectServices()
+    const deviceId = await services.deviceIdentity.getOrCreate()
+    await services.login.reauthenticate({ profileId, password, deviceId, appVersion: '0.1.0' })
+    await services.queryClient.invalidateQueries({
+      predicate: (query) => query.queryKey.includes(profileId),
+    })
+    const media = useMediaStore()
+    if (useAppStore().activeServerId === profileId) await media.loadHome(profileId)
+    else media.resetConnection(profileId)
+  }
+
   async function deleteServer(profileId: string): Promise<void> {
     const services = injectServices()
     const app = useAppStore()
@@ -146,6 +159,7 @@ export const useServerStore = defineStore('servers', () => {
     setPreferredLine,
     updateLines,
     renameServer,
+    reauthenticate,
     deleteServer,
     reorderServers,
     setLineSensitive,

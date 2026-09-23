@@ -10,6 +10,10 @@ export function provideServices(app: App, services: AppServices): void {
   app.provide(servicesKey, services)
 }
 
+export function resetProvidedServices(): void {
+  providedServices = null
+}
+
 export function injectServices(): AppServices {
   if (providedServices) return providedServices
   const services = inject(servicesKey)

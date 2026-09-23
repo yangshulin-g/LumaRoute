@@ -1,8 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { createApp } from 'vue'
+import { AppError } from '@lumaroute/core'
 import { useServerStore } from './server-store'
-import { servicesKey } from '../composition/inject-services'
+import { useMediaStore } from './media-store'
+import { provideServices, resetProvidedServices } from '../composition/inject-services'
 import type { AppServices } from '../composition/service-types'
 
 const selectServer = vi.fn().mockResolvedValue(undefined)
@@ -25,7 +27,7 @@ function withServices<T>(
   const pinia = createPinia()
   app.use(pinia)
   setActivePinia(pinia)
-  app.provide(servicesKey, services)
+  provideServices(app, services)
   return app.runWithContext(() => {
     const store = useServerStore()
     return operation(store)
@@ -39,6 +41,10 @@ describe('useServerStore', () => {
   )
   const getOrCreate = vi.fn().mockResolvedValue('device-1')
   const refreshProfiles = vi.fn().mockResolvedValue([])
+
+  afterEach(() => {
+    resetProvidedServices()
+  })
 
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -138,6 +144,82 @@ describe('useServerStore', () => {
       await store.deleteServer('profile-2')
       expect(store.profiles).toEqual([])
       expect(selectServer).toHaveBeenCalledWith(null)
+    })
+  })
+
+  it('re-authenticates with the device identity and reloads the active server home', async () => {
+    const reauthenticate = vi.fn().mockResolvedValue({ id: 'profile-2' })
+    const invalidateQueries = vi.fn().mockResolvedValue(undefined)
+    const media = {
+      getLibraries: vi.fn().mockResolvedValue({ value: [], lineId: 'line-1' }),
+      getContinueWatching: vi.fn().mockResolvedValue({ value: [], lineId: 'line-1' }),
+    }
+    const services = {
+      deviceIdentity: { getOrCreate },
+      login: { reauthenticate },
+      media,
+      queryClient: { invalidateQueries },
+    } as unknown as AppServices
+
+    await withServices(services, async (store) => {
+      await store.reauthenticate('profile-2', 'new-password')
+      expect(reauthenticate).toHaveBeenCalledWith({
+        profileId: 'profile-2',
+        password: 'new-password',
+        deviceId: 'device-1',
+        appVersion: '0.1.0',
+      })
+      expect(media.getLibraries).toHaveBeenCalledWith('profile-2', expect.any(AbortSignal))
+      expect(useMediaStore().connectionStatus('profile-2')).toBe('healthy')
+      expect(invalidateQueries).toHaveBeenCalledWith({
+        predicate: expect.any(Function),
+      })
+      const predicate = invalidateQueries.mock.calls[0]![0]!.predicate as (query: {
+        queryKey: readonly unknown[]
+      }) => boolean
+      expect(predicate({ queryKey: ['media', 'profile-2'] })).toBe(true)
+      expect(predicate({ queryKey: ['media', 'profile-1'] })).toBe(false)
+    })
+  })
+
+  it('clears the stale error of a non-active server without loading its home', async () => {
+    activeServerId.value = 'profile-1'
+    const invalidateQueries = vi.fn().mockResolvedValue(undefined)
+    const media = {
+      getLibraries: vi
+        .fn()
+        .mockRejectedValueOnce(new AppError('AuthenticationExpired', 'rejected')),
+      getContinueWatching: vi.fn().mockResolvedValue({ value: [], lineId: 'line-1' }),
+    }
+    const services = {
+      deviceIdentity: { getOrCreate },
+      login: { reauthenticate: vi.fn().mockResolvedValue({ id: 'profile-2' }) },
+      media,
+      queryClient: { invalidateQueries },
+    } as unknown as AppServices
+
+    await withServices(services, async (store) => {
+      const mediaStore = useMediaStore()
+      await mediaStore.loadHome('profile-2')
+      expect(mediaStore.connectionStatus('profile-2')).toBe('unhealthy')
+      await store.reauthenticate('profile-2', 'new-password')
+      expect(media.getLibraries).toHaveBeenCalledOnce()
+      expect(mediaStore.connectionStatus('profile-2')).toBe('unknown')
+      expect(invalidateQueries).toHaveBeenCalled()
+    })
+  })
+
+  it('propagates a UserMismatch rejection to the caller', async () => {
+    const services = {
+      deviceIdentity: { getOrCreate },
+      login: {
+        reauthenticate: vi.fn().mockRejectedValue(new AppError('UserMismatch', 'mismatch')),
+      },
+    } as unknown as AppServices
+    await withServices(services, async (store) => {
+      await expect(store.reauthenticate('profile-2', 'pw')).rejects.toMatchObject({
+        code: 'UserMismatch',
+      })
     })
   })
 })
