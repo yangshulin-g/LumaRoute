@@ -18,3 +18,23 @@ test('browses, searches, starts playback, and shows progress', async ({
     PositionTicks: 120_000_000,
   })
 })
+
+test('uses the Aurora shell without widening current-server scope', async ({
+  page,
+  seedAuthenticatedProfiles,
+}) => {
+  await seedAuthenticatedProfiles(page)
+
+  await page.keyboard.press('Control+K')
+  const search = page.getByTestId('current-server-search')
+  await expect(search).toBeFocused()
+  await expect(search).toHaveAttribute('placeholder', '搜索当前服务器')
+
+  await page.getByTestId('library-movies').click()
+  await expect(page.getByTestId('media-card').first()).toBeVisible()
+  const posterSources = await page
+    .locator('[data-testid="media-card"] img')
+    .evaluateAll((images) => images.map((image) => image.getAttribute('src') ?? ''))
+  expect(posterSources.every((source) => source === '' || source.startsWith('blob:'))).toBe(true)
+  expect(posterSources.join(' ')).not.toMatch(/token|api_key|X-Emby-Token/i)
+})
