@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import type { MediaItem } from '@lumaroute/core'
 import { injectServices } from '../composition/inject-services'
 import VirtualPosterGrid from '../components/VirtualPosterGrid.vue'
-import { resolveLine } from '../presentation/line-presenters'
 import { useAppStore } from '../stores/app-store'
 import { useMediaStore } from '../stores/media-store'
-import { useServerStore } from '../stores/server-store'
 
 const props = defineProps<{
   activeServerId?: string
@@ -16,22 +14,13 @@ const props = defineProps<{
 const services = injectServices()
 const appStore = useAppStore()
 const mediaStore = useMediaStore()
-const serverStore = useServerStore()
 const route = useRoute()
-const router = useRouter()
 const term = ref(typeof route.query.q === 'string' ? route.query.q : '')
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 let searchController: AbortController | null = null
 
 const resolvedServerId = computed(
   () => appStore.activeServerId ?? (props.activeServerId !== 'missing' ? props.activeServerId : null),
-)
-
-const activeProfile = computed(
-  () => serverStore.profiles.find((profile) => profile.id === resolvedServerId.value) ?? null,
-)
-const activeLineLabel = computed(
-  () => resolveLine(activeProfile.value, mediaStore.activeLineId)?.label ?? null,
 )
 
 const searchItems = computed<readonly MediaItem[]>(
@@ -79,13 +68,6 @@ function scheduleSearch(nextTerm: string): void {
   }, 250)
 }
 
-function onSearchInput(event: Event): void {
-  const value = (event.target as HTMLInputElement).value
-  term.value = value
-  void router.replace({ name: 'search', query: value ? { q: value } : {} })
-  scheduleSearch(value)
-}
-
 watch(
   () => resolvedServerId.value,
   () => {
@@ -120,24 +102,6 @@ if (term.value.trim()) {
   <section class="search-view">
     <header class="view-header">
       <h1>搜索</h1>
-      <label class="search-field">
-        <span class="sr-only">搜索当前服务器</span>
-        <input
-          name="search"
-          type="search"
-          role="searchbox"
-          :value="term"
-          placeholder="搜索当前服务器"
-          autocomplete="off"
-          @input="onSearchInput"
-        >
-      </label>
-      <p
-        class="lr-muted line-note"
-        data-testid="active-line"
-      >
-        当前线路：{{ activeLineLabel ?? '尚无活动线路' }}
-      </p>
     </header>
 
     <h2
@@ -152,7 +116,7 @@ if (term.value.trim()) {
       class="empty-state lr-muted"
       data-testid="search-empty"
     >
-      输入关键词以搜索当前服务器
+      在顶部搜索框输入关键词（⌘K / Ctrl+K）
     </p>
 
     <p
@@ -190,26 +154,6 @@ h1 {
   margin: 0;
   color: var(--lr-text-primary);
   letter-spacing: -0.01em;
-}
-
-.search-field input {
-  width: 100%;
-  min-height: var(--lr-control-h-lg);
-  border-radius: 999px;
-  padding-inline: 1rem;
-  background: var(--lr-surface-card-solid);
-  border: 1px solid var(--lr-border-subtle);
-  box-shadow: var(--lr-shadow);
-}
-
-.search-field input:hover:not(:disabled):not(:focus) {
-  border-color: var(--lr-border-hover);
-  background: var(--lr-surface-card-solid);
-}
-
-.line-note {
-  margin: 0;
-  font-size: var(--lr-font-sm);
 }
 
 .result-title {

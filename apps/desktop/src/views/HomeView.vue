@@ -2,11 +2,9 @@
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import ContinueWatchingCard from '../components/ContinueWatchingCard.vue'
-import { resolveLine } from '../presentation/line-presenters'
 import { collectionTypeLabel } from '../presentation/media-presenters'
 import { useAppStore } from '../stores/app-store'
 import { useMediaStore } from '../stores/media-store'
-import { useServerStore } from '../stores/server-store'
 import type { ServerConnectionStatus } from '../stores/server-connection-status'
 
 const props = defineProps<{
@@ -15,15 +13,10 @@ const props = defineProps<{
 
 const appStore = useAppStore()
 const mediaStore = useMediaStore()
-const serverStore = useServerStore()
 
 /** Prefer live app-store id; route props can stay stale after bootstrap/server switch. */
 const activeServerId = computed(
   () => appStore.activeServerId ?? (props.activeServerId !== 'missing' ? props.activeServerId : null),
-)
-
-const activeProfile = computed(
-  () => serverStore.profiles.find((profile) => profile.id === activeServerId.value) ?? null,
 )
 
 const status = computed<ServerConnectionStatus>(() =>
@@ -32,18 +25,6 @@ const status = computed<ServerConnectionStatus>(() =>
 const errorMessage = computed(() =>
   activeServerId.value ? mediaStore.connectionError(activeServerId.value) : null,
 )
-
-const activeLineLabel = computed(
-  () => resolveLine(activeProfile.value, mediaStore.activeLineId)?.label ?? null,
-)
-
-const connectionLabels: Record<ServerConnectionStatus, string> = {
-  healthy: '连接正常',
-  checking: '正在检查',
-  unhealthy: '连接异常',
-  unknown: '尚未检查',
-}
-const connectionLabel = computed(() => connectionLabels[status.value])
 </script>
 
 <template>
@@ -53,27 +34,6 @@ const connectionLabel = computed(() => connectionLabels[status.value])
     </header>
 
     <div class="home-bento">
-      <section
-        class="lr-glass-card line-card"
-        aria-labelledby="line-heading"
-      >
-        <h2 id="line-heading">
-          当前连接
-        </h2>
-        <p
-          class="line-label"
-          data-testid="active-line"
-        >
-          {{ activeLineLabel ?? '尚无活动线路' }}
-        </p>
-        <p
-          class="lr-muted"
-          :data-status="status"
-        >
-          连接状态：{{ connectionLabel }}
-        </p>
-      </section>
-
       <p
         v-if="status === 'checking' || status === 'unknown'"
         class="lr-muted home-status"
@@ -166,7 +126,7 @@ const connectionLabel = computed(() => connectionLabels[status.value])
 
 .home-bento {
   display: grid;
-  grid-template-columns: minmax(14rem, 1fr) minmax(0, 3fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
 }
@@ -175,45 +135,10 @@ const connectionLabel = computed(() => connectionLabels[status.value])
   min-width: 0;
 }
 
-.home-status,
-.continue-panel,
-.library-bento {
-  grid-column: 2;
-}
-
-.line-card {
-  grid-row: 1 / span 2;
-}
-
-@media (max-width: 60rem) {
-  .home-bento {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .home-status,
-  .continue-panel,
-  .library-bento,
-  .line-card {
-    grid-column: 1;
-    grid-row: auto;
-  }
-}
-
-.line-card,
 .continue-panel {
   display: grid;
   gap: 0.5rem;
   padding: 1rem 1.15rem;
-}
-
-.line-card p {
-  margin: 0;
-}
-
-.line-label {
-  font-weight: 650;
-  color: var(--lr-text-primary);
-  overflow-wrap: anywhere;
 }
 
 .home-status {
