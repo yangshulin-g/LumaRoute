@@ -89,7 +89,7 @@ h2 {
   font-weight: 650;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--lr-text-tertiary);
+  color: var(--lr-text-muted);
 }
 
 p {
@@ -99,7 +99,7 @@ p {
 }
 
 .sidebar-error {
-  color: var(--lr-danger);
+  color: var(--lr-accent-rose);
   font-size: var(--lr-font-sm);
   line-height: 1.4;
 }
@@ -115,21 +115,33 @@ ul {
 .nav-item {
   display: block;
   padding: 0.45rem 0.7rem;
+  border: 1px solid transparent;
   border-radius: var(--lr-radius-sm);
   text-decoration: none;
-  color: inherit;
+  color: var(--lr-text-secondary);
   position: relative;
   font-size: var(--lr-font-md);
   font-weight: 500;
-  transition: background var(--lr-ease);
+  transition:
+    background var(--lr-ease),
+    border-color var(--lr-ease),
+    color var(--lr-ease);
 }
 
 .nav-item:hover {
   background: var(--lr-surface-hover);
+  color: var(--lr-text-primary);
+}
+
+.nav-item:focus-visible {
+  outline: none;
+  box-shadow: var(--lr-focus-ring);
 }
 
 .nav-item.router-link-active {
   background: var(--lr-accent-soft);
+  border-color: rgb(6 182 212 / 25%);
+  color: var(--lr-text-primary);
   font-weight: 650;
 }
 
@@ -141,6 +153,7 @@ ul {
   bottom: 0.4rem;
   width: 3px;
   border-radius: 999px;
-  background: var(--lr-accent);
+  background: var(--lr-accent-cyan);
+  box-shadow: 0 0 8px rgb(6 182 212 / 60%);
 }
 </style>

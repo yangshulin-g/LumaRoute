@@ -52,87 +52,119 @@ const profile: ServerProfile = {
   ],
 }
 
+async function mountPopulatedShell() {
+  const media = {
+    getLibraries: vi.fn().mockResolvedValue({ value: [library], lineId: 'line-1' }),
+    getContinueWatching: vi.fn().mockResolvedValue({ value: [movie], lineId: 'line-1' }),
+    getItems: vi.fn(),
+    search: vi.fn(),
+  }
+  const services = {
+    media,
+    storage: {
+      loadPreferences: vi.fn().mockResolvedValue({ activeServerId: profile.id }),
+      savePreferences: vi.fn(),
+      listServerProfiles: vi.fn().mockResolvedValue([profile]),
+      getServerProfile: vi.fn().mockResolvedValue(profile),
+    },
+    routes: { clearSession: vi.fn() },
+    queryClient: { cancelQueries: vi.fn() },
+  } as unknown as AppServices
+
+  const app = createApp({})
+  const pinia = createPinia()
+  app.use(pinia)
+  setActivePinia(pinia)
+  provideServices(app, services)
+
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      {
+        path: '/',
+        component: AppShell,
+        children: [
+          {
+            path: '',
+            name: 'home',
+            component: HomeView,
+            props: () => ({
+              activeServerId: useAppStore().activeServerId ?? 'missing',
+            }),
+          },
+          { path: 'library/:libraryId', component: { template: '<div />' } },
+          { path: 'settings', component: { template: '<div />' } },
+        ],
+      },
+    ],
+  })
+
+  // Mimic bootstrap: initial navigation resolves props before activeServerId exists.
+  await router.push('/')
+  await router.isReady()
+  expect(router.currentRoute.value.matched.at(-1)?.props).toBeTruthy()
+
+  const appStore = useAppStore()
+  appStore.activeServerId = profile.id
+  const serverStore = useServerStore()
+  serverStore.profiles = [profile]
+
+  const wrapper = mount(AppShell, {
+    attachTo: document.body,
+    global: {
+      plugins: [pinia, router],
+      provide: { [servicesKey as symbol]: services },
+      stubs: {
+        RouterLink,
+        MediaCard: {
+          props: ['item'],
+          template: '<div data-testid="media-card">{{ item.name }}</div>',
+        },
+      },
+    },
+  })
+
+  await app.runWithContext(async () => {
+    const mediaStore = useMediaStore()
+    await mediaStore.loadHome(profile.id)
+  })
+  await flushPromises()
+
+  return { wrapper, app, services }
+}
+
 describe('AppShell home content', () => {
   it('shows home shelves after load even when route props were snapshotted as missing', async () => {
-    const media = {
-      getLibraries: vi.fn().mockResolvedValue({ value: [library], lineId: 'line-1' }),
-      getContinueWatching: vi.fn().mockResolvedValue({ value: [movie], lineId: 'line-1' }),
-      getItems: vi.fn(),
-      search: vi.fn(),
-    }
-    const services = {
-      media,
-      storage: {
-        loadPreferences: vi.fn().mockResolvedValue({ activeServerId: profile.id }),
-        savePreferences: vi.fn(),
-        listServerProfiles: vi.fn().mockResolvedValue([profile]),
-        getServerProfile: vi.fn().mockResolvedValue(profile),
-      },
-      routes: { clearSession: vi.fn() },
-      queryClient: { cancelQueries: vi.fn() },
-    } as unknown as AppServices
-
-    const app = createApp({})
-    const pinia = createPinia()
-    app.use(pinia)
-    setActivePinia(pinia)
-    provideServices(app, services)
-
-    const router = createRouter({
-      history: createMemoryHistory(),
-      routes: [
-        {
-          path: '/',
-          component: AppShell,
-          children: [
-            {
-              path: '',
-              name: 'home',
-              component: HomeView,
-              props: () => ({
-                activeServerId: useAppStore().activeServerId ?? 'missing',
-              }),
-            },
-            { path: 'library/:libraryId', component: { template: '<div />' } },
-            { path: 'settings', component: { template: '<div />' } },
-          ],
-        },
-      ],
-    })
-
-    // Mimic bootstrap: initial navigation resolves props before activeServerId exists.
-    await router.push('/')
-    await router.isReady()
-    expect(router.currentRoute.value.matched.at(-1)?.props).toBeTruthy()
-
-    const appStore = useAppStore()
-    appStore.activeServerId = profile.id
-    const serverStore = useServerStore()
-    serverStore.profiles = [profile]
-
-    const wrapper = mount(AppShell, {
-      global: {
-        plugins: [pinia, router],
-        provide: { [servicesKey as symbol]: services },
-        stubs: {
-          RouterLink,
-          MediaCard: {
-            props: ['item'],
-            template: '<div data-testid="media-card">{{ item.name }}</div>',
-          },
-        },
-      },
-    })
-
-    await app.runWithContext(async () => {
-      const mediaStore = useMediaStore()
-      await mediaStore.loadHome(profile.id)
-    })
-    await flushPromises()
+    const { wrapper } = await mountPopulatedShell()
 
     expect(wrapper.text()).toContain('继续观看')
     expect(wrapper.text()).toContain(movie.name)
     expect(wrapper.text()).toContain(library.name)
     expect(wrapper.find('[data-testid="home-loading"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('shows only the real active line in the HUD without falling back to the preferred line', async () => {
+    const { wrapper, app } = await mountPopulatedShell()
+    const pill = wrapper.get('[data-testid="line-status-pill"]')
+    expect(pill.text()).toContain('Primary')
+    expect(pill.attributes('data-status')).toBe('healthy')
+
+    await app.runWithContext(async () => {
+      useMediaStore().activeLineId = null
+    })
+    await flushPromises()
+    expect(pill.text()).toContain('尚无活动线路')
+    expect(pill.text()).not.toContain('Primary')
+    wrapper.unmount()
+  })
+
+  it('focuses current-server search on Ctrl+K without changing its scope', async () => {
+    const { wrapper } = await mountPopulatedShell()
+    const input = wrapper.get('[data-testid="current-server-search"]').element as HTMLInputElement
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))
+    expect(document.activeElement).toBe(input)
+    expect(input.getAttribute('placeholder')).toBe('搜索当前服务器')
+    wrapper.unmount()
   })
 })

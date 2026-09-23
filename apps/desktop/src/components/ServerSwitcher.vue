@@ -77,7 +77,7 @@ h2 {
   font-weight: 650;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--lr-text-tertiary);
+  color: var(--lr-text-muted);
 }
 
 ul {
@@ -101,9 +101,10 @@ ul {
   align-items: center;
   gap: 0.5rem;
   text-align: left;
-  border: 0;
+  border: 1px solid transparent;
   border-radius: var(--lr-radius-sm);
   background: transparent;
+  color: var(--lr-text-secondary);
   padding: 0.45rem 0.7rem;
   position: relative;
   min-width: 0;
@@ -111,16 +112,27 @@ ul {
   box-shadow: none;
   font-weight: 500;
   font-size: var(--lr-font-md);
+  transition:
+    background var(--lr-ease),
+    border-color var(--lr-ease),
+    color var(--lr-ease);
 }
 
 .nav-item:hover:not(:disabled) {
   background: var(--lr-surface-hover);
   border-color: transparent;
+  color: var(--lr-text-primary);
+}
+
+.nav-item:focus-visible {
+  outline: none;
+  box-shadow: var(--lr-focus-ring);
 }
 
 .nav-item[aria-current='true'] {
   background: var(--lr-accent-soft);
-  color: var(--lr-text);
+  border-color: rgb(6 182 212 / 25%);
+  color: var(--lr-text-primary);
   font-weight: 650;
 }
 
@@ -132,7 +144,8 @@ ul {
   bottom: 0.4rem;
   width: 3px;
   border-radius: 999px;
-  background: var(--lr-accent);
+  background: var(--lr-accent-cyan);
+  box-shadow: 0 0 8px rgb(6 182 212 / 60%);
 }
 
 .health-dot {
@@ -140,19 +153,20 @@ ul {
   width: 0.45rem;
   height: 0.45rem;
   border-radius: 999px;
-  background: #94a3b8;
+  background: var(--lr-text-muted);
 }
 
 .health-dot[data-status='healthy'] {
-  background: #16a34a;
+  background: var(--lr-accent-emerald);
+  box-shadow: 0 0 6px rgb(16 185 129 / 60%);
 }
 
 .health-dot[data-status='unhealthy'] {
-  background: var(--lr-danger);
+  background: var(--lr-accent-rose);
 }
 
 .health-dot[data-status='checking'] {
-  background: #ca8a04;
+  background: var(--lr-accent-amber);
   animation: lr-health-pulse 1.1s ease-in-out infinite;
 }
 
@@ -164,21 +178,29 @@ ul {
 
 .retry-button {
   min-height: 1.65rem;
-  border: 1px solid var(--lr-border);
+  border: 1px solid var(--lr-border-subtle);
   border-radius: var(--lr-radius-xs);
-  background: var(--lr-surface);
+  background: var(--lr-bg-canvas);
   color: var(--lr-text-secondary);
   padding: 0 0.45rem;
   font-size: var(--lr-font-xs);
   font-weight: 500;
   line-height: 1.2;
   box-shadow: none;
+  transition:
+    border-color var(--lr-ease),
+    color var(--lr-ease);
 }
 
 .retry-button:hover {
-  color: var(--lr-text);
-  border-color: color-mix(in srgb, var(--lr-accent) 35%, var(--lr-border));
+  color: var(--lr-text-primary);
+  border-color: var(--lr-border-hover);
   background: var(--lr-surface-hover);
+}
+
+.retry-button:focus-visible {
+  outline: none;
+  box-shadow: var(--lr-focus-ring);
 }
 
 @keyframes lr-health-pulse {
