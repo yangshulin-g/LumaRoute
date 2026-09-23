@@ -162,4 +162,30 @@ describe('ServerSettingsView', () => {
     expect(summary).not.toContain('当前线路：LAN')
     expect(summary).toContain('首选线路：LAN')
   })
+
+  it('renames a line label without touching other line fields', async () => {
+    const { wrapper, updateLines } = mountSettings({ profiles: [profileOne] })
+    await wrapper.get('[data-testid="rename-line-line-1"]').trigger('click')
+    await wrapper.get('[data-testid="line-label-input-line-1"]').setValue('  家里  ')
+    await wrapper.get('[data-testid="line-item-line-1"] form').trigger('submit')
+    await flushPromises()
+    expect(updateLines).toHaveBeenCalledWith(
+      'profile-1',
+      [{ ...profileOne.lines[0]!, label: '家里' }, profileOne.lines[1]!],
+      'line-1',
+    )
+    expect(wrapper.find('[data-testid="line-label-input-line-1"]').exists()).toBe(false)
+  })
+
+  it('refuses to save a blank line label', async () => {
+    const { wrapper, updateLines } = mountSettings({ profiles: [profileOne] })
+    await wrapper.get('[data-testid="rename-line-line-1"]').trigger('click')
+    await wrapper.get('[data-testid="line-label-input-line-1"]').setValue('   ')
+    await wrapper.get('[data-testid="line-item-line-1"] form').trigger('submit')
+    await flushPromises()
+    expect(updateLines).not.toHaveBeenCalled()
+    expect(wrapper.get('[data-testid="line-rename-error"]').text()).toBe('线路名称不能为空')
+    await wrapper.get('[data-testid="cancel-line-label-line-1"]').trigger('click')
+    expect(wrapper.find('[data-testid="line-rename-error"]').exists()).toBe(false)
+  })
 })

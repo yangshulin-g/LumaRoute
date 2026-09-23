@@ -8,11 +8,14 @@ export interface AddServerInput {
   name: string
   kind: ServerKind
   baseUrl: string
+  lineLabel?: string
   username: string
   password: string
   deviceId: string
   appVersion: string
 }
+
+const DEFAULT_LINE_LABEL = '主线路'
 
 export class LoginService {
   constructor(
@@ -48,7 +51,7 @@ export class LoginService {
       lines: [
         {
           id: lineId,
-          label: 'Primary',
+          label: input.lineLabel?.trim() || DEFAULT_LINE_LABEL,
           baseUrl: normalizeBaseUrl(input.baseUrl),
           priority: 0,
           enabled: true,

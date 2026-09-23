@@ -38,6 +38,9 @@ const lineStatus = ref<LineStatusState>({ state: 'idle' })
 const preferredLineId = ref(props.profile.preferredLineId)
 const pendingDeleteId = ref<string | null>(null)
 const draftName = ref(props.profile.name)
+const editingLineId = ref<string | null>(null)
+const lineLabelDraft = ref('')
+const lineRenameError = ref<string | null>(null)
 
 watch(
   () => [props.profile.id, props.profile.preferredLineId] as const,
@@ -140,6 +143,29 @@ async function renameCurrent(): Promise<void> {
   const name = draftName.value.trim()
   if (!name || name === props.profile.name) return
   await props.renameServer(props.profile.id, name)
+}
+
+function startRenameLine(line: ServerLine): void {
+  editingLineId.value = line.id
+  lineLabelDraft.value = line.label
+  lineRenameError.value = null
+}
+
+function cancelRenameLine(): void {
+  editingLineId.value = null
+  lineRenameError.value = null
+}
+
+async function saveLineLabel(lineId: string): Promise<void> {
+  if (!props.updateLines) return
+  const label = lineLabelDraft.value.trim()
+  if (!label) {
+    lineRenameError.value = '线路名称不能为空'
+    return
+  }
+  const lines = props.profile.lines.map((line) => (line.id === lineId ? { ...line, label } : line))
+  await props.updateLines(props.profile.id, lines, props.profile.preferredLineId)
+  cancelRenameLine()
 }
 
 async function onSensitiveChange(lineId: string, event: Event): Promise<void> {
@@ -255,12 +281,50 @@ async function onSensitiveChange(lineId: string, event: Event): Promise<void> {
           :data-testid="`line-item-${line.id}`"
         >
           <div class="line-node-head">
-            <strong class="line-label">{{ line.label }}</strong>
+            <form
+              v-if="editingLineId === line.id"
+              class="line-rename"
+              @submit.prevent="saveLineLabel(line.id)"
+            >
+              <input
+                v-model="lineLabelDraft"
+                name="line-rename"
+                aria-label="线路名称"
+                :data-testid="`line-label-input-${line.id}`"
+              >
+              <button
+                type="submit"
+                class="lr-btn-primary lr-btn-sm"
+                :data-testid="`save-line-label-${line.id}`"
+              >
+                保存
+              </button>
+              <button
+                type="button"
+                class="lr-btn-ghost lr-btn-sm"
+                :data-testid="`cancel-line-label-${line.id}`"
+                @click="cancelRenameLine"
+              >
+                取消
+              </button>
+            </form>
+            <strong
+              v-else
+              class="line-label"
+            >{{ line.label }}</strong>
             <span
               v-if="lineProtocol(line)"
               class="protocol-chip"
             >{{ lineProtocol(line) }}</span>
           </div>
+          <p
+            v-if="editingLineId === line.id && lineRenameError"
+            class="line-rename-error"
+            role="alert"
+            data-testid="line-rename-error"
+          >
+            {{ lineRenameError }}
+          </p>
           <span class="line-url lr-muted">{{ line.baseUrl }}</span>
           <div
             v-if="lineStateLabels(line, labelledProfile, activeLineId).length"
@@ -276,6 +340,14 @@ async function onSensitiveChange(lineId: string, event: Event): Promise<void> {
             </span>
           </div>
           <div class="line-actions">
+            <button
+              type="button"
+              class="lr-btn-ghost lr-btn-sm"
+              :data-testid="`rename-line-${line.id}`"
+              @click="startRenameLine(line)"
+            >
+              重命名
+            </button>
             <button
               type="button"
               class="lr-btn-secondary lr-btn-sm"
@@ -530,6 +602,24 @@ async function onSensitiveChange(lineId: string, event: Event): Promise<void> {
 .confirm-delete p {
   margin: 0;
   font-size: var(--lr-font-md);
+  color: var(--lr-danger);
+}
+
+.line-rename {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.line-rename input {
+  min-width: 10rem;
+}
+
+.line-rename-error {
+  margin: 0;
+  font-size: var(--lr-font-sm);
   color: var(--lr-danger);
 }
 </style>

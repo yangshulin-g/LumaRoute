@@ -69,4 +69,39 @@ describe('LoginService', () => {
     ).rejects.toMatchObject({ code: 'StorageFailure' })
     expect(credentials.delete).toHaveBeenCalledWith('lumaroute/p')
   })
+
+  it.each<[{ lineLabel?: string }, string]>([
+    [{}, '主线路'],
+    [{ lineLabel: '   ' }, '主线路'],
+    [{ lineLabel: '  家里  ' }, '家里'],
+  ])('names the first line from %j', async (extra, expected) => {
+    const adapter = {
+      authenticate: vi.fn().mockResolvedValue({
+        serverId: 'server-a',
+        serverName: 'Home',
+        userId: 'user-a',
+        username: 'alice',
+        accessToken: 'token-value',
+      }),
+      getServerIdentity: vi.fn(),
+    }
+    const credentials = { set: vi.fn(), get: vi.fn(), delete: vi.fn() }
+    const storage = { saveServerProfile: vi.fn() }
+    const ids = vi.fn().mockReturnValueOnce('profile-1').mockReturnValueOnce('line-1')
+    const service = new LoginService(() => adapter, storage as never, credentials, ids)
+
+    const { profile } = await service.addServer({
+      name: 'Home',
+      kind: 'jellyfin',
+      baseUrl: 'https://media.example.com',
+      username: 'alice',
+      password: 'password-value',
+      deviceId: 'device-1',
+      appVersion: '0.1.0',
+      ...extra,
+    })
+
+    expect(profile.lines[0]?.label).toBe(expected)
+    expect(JSON.stringify(profile)).not.toContain('Primary')
+  })
 })

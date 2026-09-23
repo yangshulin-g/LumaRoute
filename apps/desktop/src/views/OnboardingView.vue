@@ -20,6 +20,7 @@ const form = reactive({
   kind: 'emby' as ServerKind,
   name: '',
   baseUrl: '',
+  lineLabel: '',
   username: '',
   password: '',
 })
@@ -36,6 +37,7 @@ async function submit(): Promise<void> {
       kind: form.kind,
       name: form.name,
       baseUrl: form.baseUrl,
+      lineLabel: form.lineLabel,
       username: form.username,
       password,
     })
@@ -96,6 +98,15 @@ async function submit(): Promise<void> {
             type="url"
             required
             placeholder="https://"
+          >
+        </label>
+        <label class="lr-field">
+          <span>线路名称</span>
+          <input
+            v-model.trim="form.lineLabel"
+            name="lineLabel"
+            placeholder="主线路"
+            autocomplete="off"
           >
         </label>
         <label class="lr-field">
