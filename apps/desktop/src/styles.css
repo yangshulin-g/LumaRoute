@@ -8,6 +8,7 @@
   --lr-bg-base: #080c14;
   --lr-bg-canvas: #0d1322;
   --lr-surface-card: rgb(15 23 42 / 70%);
+  --lr-surface-card-solid: #0f172a;
   --lr-surface-card-hover: rgb(30 41 59 / 85%);
   --lr-surface-active: rgb(15 28 50 / 90%);
   --lr-border-subtle: rgb(255 255 255 / 8%);
@@ -55,7 +56,7 @@
 }
 
 .lr-glass-card {
-  background: var(--lr-surface-card);
+  background: var(--lr-surface-card-solid);
   border: 1px solid var(--lr-border-subtle);
   border-radius: 1rem;
   box-shadow:
@@ -65,6 +66,7 @@
 
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .lr-glass-card {
+    background: var(--lr-surface-card);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
   }
