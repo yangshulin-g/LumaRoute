@@ -10,6 +10,7 @@ export type LogicalServerFixture = {
   password: string
   primary: MockMediaServer
   backup: MockMediaServer
+  changePassword(password: string, token: string): void
 }
 
 export type MediaServerFixtures = {
@@ -56,6 +57,7 @@ function installJellyfinSurface(
     userId: string
     token: string
     username: string
+    password: string
     extraItems: readonly Record<string, unknown>[]
   },
 ): void {
@@ -64,6 +66,7 @@ function installJellyfinSurface(
   const itemsFixture = { Items: allItems, TotalRecordCount: allItems.length }
   const librariesFixture = loadJson('jellyfin/libraries.json')
   const playbackInfoFixture = loadJson('jellyfin/playback-info.json')
+  const requiredToken = options.token
 
   server.reply('/System/Info/Public', {
     status: 200,
@@ -72,6 +75,7 @@ function installJellyfinSurface(
   server.reply('/System/Info', {
     status: 200,
     body: { Id: options.serverId, ServerName: options.serverName },
+    requiredToken,
   })
   server.reply('/Users/AuthenticateByName', {
     status: 200,
@@ -80,27 +84,30 @@ function installJellyfinSurface(
       ServerId: options.serverId,
       User: { Id: options.userId, Name: options.username },
     },
+    requiredPassword: options.password,
   })
-  server.reply('/Library/VirtualFolders', { status: 200, body: librariesFixture })
+  server.reply('/Library/VirtualFolders', { status: 200, body: librariesFixture, requiredToken })
   server.reply(`/Users/${options.userId}/Items`, {
     status: 200,
     body: itemsFixture,
     filterBySearchTerm: true,
+    requiredToken,
   })
   server.reply(`/Users/${options.userId}/Items/Resume`, {
     status: 200,
     body: { Items: [], TotalRecordCount: 0 },
+    requiredToken,
   })
-  server.reply('/Items/*/PlaybackInfo', { status: 200, body: playbackInfoFixture })
+  server.reply('/Items/*/PlaybackInfo', { status: 200, body: playbackInfoFixture, requiredToken })
   server.reply('/Items/*/Images/Primary', {
     status: 200,
     bytes: POSTER_PNG,
     contentType: 'image/png',
-    requiredToken: options.token,
+    requiredToken,
   })
-  server.reply('/Sessions/Playing', { status: 204, body: {} })
-  server.reply('/Sessions/Playing/Progress', { status: 204, body: {} })
-  server.reply('/Sessions/Playing/Stopped', { status: 204, body: {} })
+  server.reply('/Sessions/Playing', { status: 204, body: {}, requiredToken })
+  server.reply('/Sessions/Playing/Progress', { status: 204, body: {}, requiredToken })
+  server.reply('/Sessions/Playing/Stopped', { status: 204, body: {}, requiredToken })
 }
 
 async function createLogicalServer(input: {
@@ -113,29 +120,29 @@ async function createLogicalServer(input: {
   const primary = await mockServer()
   const backup = await mockServer()
   const username = 'alice'
-  installJellyfinSurface(primary, {
-    serverId: input.serverId,
-    serverName: input.name,
-    userId: input.userId,
-    token: input.token,
-    username,
-    extraItems: input.extraItems ?? [],
-  })
-  installJellyfinSurface(backup, {
-    serverId: input.serverId,
-    serverName: input.name,
-    userId: input.userId,
-    token: input.token,
-    username,
-    extraItems: input.extraItems ?? [],
-  })
+  const password = 'test-password'
+  const install = (nextPassword: string, token: string): void => {
+    for (const server of [primary, backup]) {
+      installJellyfinSurface(server, {
+        serverId: input.serverId,
+        serverName: input.name,
+        userId: input.userId,
+        token,
+        username,
+        password: nextPassword,
+        extraItems: input.extraItems ?? [],
+      })
+    }
+  }
+  install(password, input.token)
   return {
     name: input.name,
     serverId: input.serverId,
     username,
-    password: 'test-password',
+    password,
     primary,
     backup,
+    changePassword: install,
   }
 }
 

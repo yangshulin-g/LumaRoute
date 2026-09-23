@@ -59,3 +59,17 @@ test('keeps search scoped to the active server', async ({ page, seedAuthenticate
   await search.fill(SERVER_TWO_ONLY_TITLE)
   await expect(cards.filter({ hasText: SERVER_TWO_ONLY_TITLE })).toBeVisible()
 })
+
+test('keeps the top bar as the only search input', async ({ page, seedAuthenticatedProfiles }) => {
+  await seedAuthenticatedProfiles(page)
+  const search = page.getByTestId('current-server-search')
+
+  await search.fill('Arrival')
+  await expect(page).toHaveURL(/\/search\?q=Arrival/)
+  await expect(page.getByRole('searchbox')).toHaveCount(1)
+  await expect(page.getByTestId('media-card').filter({ hasText: 'Arrival' })).toBeVisible()
+
+  await search.fill('')
+  await expect(page.getByTestId('search-empty')).toHaveText('在顶部搜索框输入关键词（⌘K / Ctrl+K）')
+  await expect(page.getByRole('searchbox')).toHaveCount(1)
+})

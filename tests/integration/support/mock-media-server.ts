@@ -13,6 +13,7 @@ export type Reply = {
   bytes?: Uint8Array
   contentType?: string
   requiredToken?: string
+  requiredPassword?: string
   filterBySearchTerm?: boolean
 }
 
@@ -145,6 +146,16 @@ export async function mockServer(): Promise<MockMediaServer> {
         response.setHeader('content-type', 'application/json')
         response.end(JSON.stringify({ message: 'unauthorized' }))
         return
+      }
+      if (reply.requiredPassword !== undefined) {
+        const submitted =
+          body && typeof body === 'object' ? (body as { Pw?: unknown }).Pw : undefined
+        if (submitted !== reply.requiredPassword) {
+          response.statusCode = 401
+          response.setHeader('content-type', 'application/json')
+          response.end(JSON.stringify({ message: 'invalid credentials' }))
+          return
+        }
       }
       response.statusCode = reply.status ?? 200
       if (reply.bytes) {
