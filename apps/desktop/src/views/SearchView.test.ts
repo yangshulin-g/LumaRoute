@@ -21,13 +21,14 @@ const movie: MediaItem = {
   playbackPositionSeconds: 0,
 }
 
-function mountSearch(options: { activeServerId: string }) {
+function mountSearch(options: { activeServerId: string; results?: MediaItem[] }) {
+  const results = options.results ?? [movie]
   const media = {
     getLibraries: vi.fn(),
     getContinueWatching: vi.fn(),
     getItems: vi.fn(),
     search: vi.fn().mockResolvedValue({
-      value: { items: [movie], total: 1, startIndex: 0 },
+      value: { items: results, total: results.length, startIndex: 0 },
       lineId: 'line-1',
     }),
   }
@@ -52,7 +53,7 @@ function mountSearch(options: { activeServerId: string }) {
         VirtualPosterGrid: {
           props: ['items'],
           template: `
-            <div>
+            <div data-testid="poster-grid">
               <div
                 v-for="item in items"
                 :key="item.id"
@@ -93,5 +94,17 @@ describe('SearchView', () => {
     )
     await flushPromises()
     expect(wrapper.text()).toContain(movie.name)
+  })
+
+  it('replaces the grid with an empty state when the current server has no matches', async () => {
+    vi.useFakeTimers()
+    const { wrapper, media, router } = mountSearch({ activeServerId: 'profile-2', results: [] })
+    await router.push('/search')
+    await wrapper.get('[name="search"]').setValue('Nothing')
+    await vi.advanceTimersByTimeAsync(250)
+    await flushPromises()
+    expect(media.search).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('[data-testid="search-no-results"]').text()).toBe('当前服务器没有匹配的结果。')
+    expect(wrapper.find('[data-testid="poster-grid"]').exists()).toBe(false)
   })
 })

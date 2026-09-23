@@ -22,12 +22,13 @@ const series: MediaItem = {
   playbackPositionSeconds: 0,
 }
 
-function mountLibrary(options: { serverId: string; libraryId: string }) {
+function mountLibrary(options: { serverId: string; libraryId: string; items?: MediaItem[] }) {
+  const items = options.items ?? [series]
   const media = {
     getLibraries: vi.fn(),
     getContinueWatching: vi.fn(),
     getItems: vi.fn().mockResolvedValue({
-      value: { items: [series], total: 1, startIndex: 0 },
+      value: { items, total: items.length, startIndex: 0 },
       lineId: 'line-1',
     }),
     search: vi.fn(),
@@ -64,7 +65,7 @@ function mountLibrary(options: { serverId: string; libraryId: string }) {
         VirtualPosterGrid: {
           props: ['items'],
           template: `
-            <div>
+            <div data-testid="poster-grid">
               <a
                 v-for="item in items"
                 :key="item.id"
@@ -104,5 +105,12 @@ describe('LibraryView', () => {
     const { wrapper } = mountLibrary({ serverId: 'profile-1', libraryId: 'lib-1' })
     await flushPromises()
     expect(wrapper.get('[data-testid="library-count"]').text()).toBe('共 1 项')
+  })
+
+  it('replaces the grid with an empty state when the library has no items', async () => {
+    const { wrapper } = mountLibrary({ serverId: 'profile-1', libraryId: 'lib-1', items: [] })
+    await flushPromises()
+    expect(wrapper.get('[data-testid="library-empty"]').text()).toBe('此媒体库暂无内容')
+    expect(wrapper.find('[data-testid="poster-grid"]').exists()).toBe(false)
   })
 })

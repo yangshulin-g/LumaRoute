@@ -145,6 +145,14 @@ if (term.value.trim()) {
       输入关键词以搜索当前服务器
     </p>
 
+    <p
+      v-else-if="mediaStore.searchResults && searchItems.length === 0"
+      class="empty-state lr-muted"
+      data-testid="search-no-results"
+    >
+      当前服务器没有匹配的结果。
+    </p>
+
     <VirtualPosterGrid
       v-else-if="mediaStore.searchResults && resolvedServerId"
       :items="searchItems"

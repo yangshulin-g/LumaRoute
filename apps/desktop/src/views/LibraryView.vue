@@ -77,6 +77,7 @@ async function loadNext(): Promise<void> {
     <p
       v-if="totalCount === 0"
       class="empty-state lr-muted"
+      data-testid="library-empty"
     >
       此媒体库暂无内容
     </p>
