@@ -12,6 +12,10 @@ export function isAbortError(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError'
 }
 
+export function isAuthenticationExpired(error: unknown): boolean {
+  return errorField(error, 'code') === 'AuthenticationExpired'
+}
+
 /** Map browse/credential failures to short Chinese UI copy (no secrets). */
 export function connectionErrorMessage(error: unknown): string {
   const code = errorField(error, 'code')

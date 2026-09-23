@@ -7,12 +7,14 @@ const props = defineProps<{
   profiles: readonly ServerProfile[]
   activeId: string | null
   statusById?: Readonly<Record<string, ServerConnectionStatus>>
+  needsReauthById?: Readonly<Record<string, boolean>>
 }>()
 
 const emit = defineEmits<{
   select: [profileId: string]
   retry: [profileId: string]
   add: []
+  reauth: [profileId: string]
 }>()
 
 function statusFor(profileId: string): ServerConnectionStatus {
@@ -71,6 +73,16 @@ function statusFor(profileId: string): ServerConnectionStatus {
           >
             重试
           </button>
+          <button
+            v-if="statusFor(profile.id) === 'unhealthy' && needsReauthById?.[profile.id]"
+            type="button"
+            class="retry-button"
+            :data-testid="`server-reauth-${profile.id}`"
+            :aria-label="`重新登录 ${profile.name}`"
+            @click.stop="emit('reauth', profile.id)"
+          >
+            重新登录
+          </button>
         </div>
       </li>
     </ul>
@@ -103,7 +115,7 @@ ul {
 
 .server-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 0.25rem;
   align-items: center;
 }

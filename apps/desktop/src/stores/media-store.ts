@@ -5,12 +5,14 @@ import { injectServices } from '../composition/inject-services'
 import {
   connectionErrorMessage,
   isAbortError,
+  isAuthenticationExpired,
   type ServerConnectionStatus,
 } from './server-connection-status'
 
 type ConnectionEntry = {
   status: ServerConnectionStatus
   error: string | null
+  needsReauth: boolean
 }
 
 export const useMediaStore = defineStore('media', () => {
@@ -33,6 +35,10 @@ export const useMediaStore = defineStore('media', () => {
 
   function connectionError(profileId: string): string | null {
     return connections.value[profileId]?.error ?? null
+  }
+
+  function connectionNeedsReauth(profileId: string): boolean {
+    return connections.value[profileId]?.needsReauth ?? false
   }
 
   function setConnection(profileId: string, entry: ConnectionEntry): void {
@@ -59,7 +65,7 @@ export const useMediaStore = defineStore('media', () => {
       else signal.addEventListener('abort', onExternalAbort, { once: true })
     }
 
-    setConnection(serverId, { status: 'checking', error: null })
+    setConnection(serverId, { status: 'checking', error: null, needsReauth: false })
     libraries.value = []
     continueWatching.value = []
     activeLineId.value = null
@@ -73,12 +79,13 @@ export const useMediaStore = defineStore('media', () => {
       libraries.value = libraryResult.value
       continueWatching.value = resumeResult.value
       activeLineId.value = resumeResult.lineId
-      setConnection(serverId, { status: 'healthy', error: null })
+      setConnection(serverId, { status: 'healthy', error: null, needsReauth: false })
     } catch (error) {
       if (generation !== homeGeneration || isAbortError(error) || activeSignal.aborted) return
       setConnection(serverId, {
         status: 'unhealthy',
         error: connectionErrorMessage(error),
+        needsReauth: isAuthenticationExpired(error),
       })
     } finally {
       if (signal) signal.removeEventListener('abort', onExternalAbort)
@@ -136,6 +143,7 @@ export const useMediaStore = defineStore('media', () => {
     activeLineId,
     connectionStatus,
     connectionError,
+    connectionNeedsReauth,
     resetConnection,
     loadHome,
     loadLibraryPage,

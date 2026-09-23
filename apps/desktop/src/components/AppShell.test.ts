@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createApp } from 'vue'
 import { createMemoryHistory, createRouter, RouterLink } from 'vue-router'
 import { describe, expect, it, vi } from 'vitest'
-import type { Library, MediaItem, ServerProfile } from '@lumaroute/core'
+import { AppError, type Library, type MediaItem, type ServerProfile } from '@lumaroute/core'
 import { provideServices, servicesKey } from '../composition/inject-services'
 import type { AppServices } from '../composition/service-types'
 import { useAppStore } from '../stores/app-store'
@@ -218,6 +218,21 @@ describe('AppShell home content', () => {
     expect(wrapper.get('[data-testid="line-status-pill"]').attributes('data-status')).toBe(
       'unhealthy',
     )
+    wrapper.unmount()
+  })
+
+  it('routes an expired credential from the sidebar to the settings account block', async () => {
+    const { wrapper, app, services, router } = await mountPopulatedShell()
+    vi.mocked(services.media.getLibraries).mockRejectedValueOnce(
+      new AppError('AuthenticationExpired', 'Server credential was rejected'),
+    )
+    await app.runWithContext(async () => {
+      await useMediaStore().loadHome(profile.id)
+    })
+    await flushPromises()
+    await wrapper.get('[data-testid="server-reauth-profile-1"]').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).toBe('/settings?reauth=1')
     wrapper.unmount()
   })
 })

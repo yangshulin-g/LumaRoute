@@ -192,4 +192,23 @@ describe('useMediaStore', () => {
       expect(store.connectionError('profile-1')).toBeNull()
     })
   })
+
+  it('flags a server for re-login only when its credential expired', async () => {
+    const expired = createMediaStoreHarness({
+      getLibraries: vi.fn().mockRejectedValue(new AppError('AuthenticationExpired', 'rejected')),
+    })
+    await expired.withStore(async (store) => {
+      await store.loadHome('profile-1')
+      expect(store.connectionNeedsReauth('profile-1')).toBe(true)
+    })
+
+    const offline = createMediaStoreHarness({
+      getLibraries: vi.fn().mockRejectedValue(new AppError('NetworkUnavailable', 'down')),
+    })
+    await offline.withStore(async (store) => {
+      await store.loadHome('profile-1')
+      expect(store.connectionStatus('profile-1')).toBe('unhealthy')
+      expect(store.connectionNeedsReauth('profile-1')).toBe(false)
+    })
+  })
 })

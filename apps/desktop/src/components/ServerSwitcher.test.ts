@@ -95,4 +95,23 @@ describe('ServerSwitcher', () => {
     await add.trigger('click')
     expect(wrapper.emitted('add')).toEqual([[]])
   })
+
+  it('offers re-login only for an unhealthy server whose credential expired', async () => {
+    const wrapper = mount(ServerSwitcher, {
+      props: {
+        profiles,
+        activeId: 'profile-1',
+        statusById: { 'profile-1': 'unhealthy' },
+        needsReauthById: { 'profile-1': true },
+      },
+    })
+    const reauth = wrapper.get('[data-testid="server-reauth-profile-1"]')
+    expect(reauth.text()).toBe('重新登录')
+    await reauth.trigger('click')
+    expect(wrapper.emitted('reauth')).toEqual([['profile-1']])
+    expect(wrapper.emitted('select')).toBeUndefined()
+
+    const offline = mountSwitcher({ statusById: { 'profile-1': 'unhealthy' } })
+    expect(offline.find('[data-testid="server-reauth-profile-1"]').exists()).toBe(false)
+  })
 })

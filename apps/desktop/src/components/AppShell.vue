@@ -37,6 +37,14 @@ const statusById = computed(() => {
   return map
 })
 
+const needsReauthById = computed(() => {
+  const map: Record<string, boolean> = {}
+  for (const profile of serverStore.profiles) {
+    map[profile.id] = mediaStore.connectionNeedsReauth(profile.id)
+  }
+  return map
+})
+
 watch(
   () => appStore.activeServerId,
   (serverId) => {
@@ -87,6 +95,11 @@ async function onRetry(profileId: string): Promise<void> {
 function onAddServer(): void {
   void router.push({ name: 'onboarding', query: { mode: 'add' } })
 }
+
+async function onReauth(profileId: string): Promise<void> {
+  if (appStore.activeServerId !== profileId) await appStore.selectServer(profileId)
+  await router.push({ name: 'settings', query: { reauth: '1' } })
+}
 </script>
 
 <template>
@@ -104,9 +117,11 @@ function onAddServer(): void {
           :profiles="serverStore.profiles"
           :active-id="appStore.activeServerId"
           :status-by-id="statusById"
+          :needs-reauth-by-id="needsReauthById"
           @select="onSelectServer"
           @retry="onRetry"
           @add="onAddServer"
+          @reauth="onReauth"
         />
         <p
           class="status-legend"

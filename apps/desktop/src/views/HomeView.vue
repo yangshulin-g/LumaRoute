@@ -25,6 +25,9 @@ const status = computed<ServerConnectionStatus>(() =>
 const errorMessage = computed(() =>
   activeServerId.value ? mediaStore.connectionError(activeServerId.value) : null,
 )
+const needsReauth = computed(() =>
+  activeServerId.value ? mediaStore.connectionNeedsReauth(activeServerId.value) : false,
+)
 </script>
 
 <template>
@@ -41,13 +44,22 @@ const errorMessage = computed(() =>
       >
         正在加载服务器内容…
       </p>
-      <p
+      <div
         v-else-if="status === 'unhealthy'"
         class="home-error home-status"
         data-testid="home-error"
+        role="alert"
       >
-        {{ errorMessage ?? '加载失败，请使用侧栏重试。' }}
-      </p>
+        <p>{{ errorMessage ?? '加载失败，请使用侧栏重试。' }}</p>
+        <RouterLink
+          v-if="needsReauth"
+          class="lr-btn-secondary lr-btn-sm home-reauth"
+          data-testid="home-reauth"
+          :to="{ name: 'settings', query: { reauth: '1' } }"
+        >
+          重新登录
+        </RouterLink>
+      </div>
 
       <template v-else>
         <section
@@ -146,6 +158,8 @@ const errorMessage = computed(() =>
 }
 
 .home-error {
+  display: grid;
+  gap: 0.6rem;
   max-width: 36rem;
   padding: 0.85rem 1rem;
   border-radius: var(--lr-radius-sm);
@@ -153,6 +167,14 @@ const errorMessage = computed(() =>
   background: var(--lr-danger-soft);
   color: var(--lr-danger);
   line-height: 1.45;
+}
+
+.home-error p {
+  margin: 0;
+}
+
+.home-reauth {
+  justify-self: start;
 }
 
 section h2 {

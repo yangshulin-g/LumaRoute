@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   connectionErrorMessage,
   isAbortError,
+  isAuthenticationExpired,
   USER_MISMATCH_MESSAGE,
 } from './server-connection-status'
 
@@ -25,5 +26,11 @@ describe('server-connection-status', () => {
     expect(connectionErrorMessage({ code: 'UserMismatch', message: 'mismatch' })).toBe(
       USER_MISMATCH_MESSAGE,
     )
+  })
+
+  it('detects expired credentials from AppError and plain IPC rejections', () => {
+    expect(isAuthenticationExpired(new AppError('AuthenticationExpired', 'rejected'))).toBe(true)
+    expect(isAuthenticationExpired({ code: 'AuthenticationExpired' })).toBe(true)
+    expect(isAuthenticationExpired(new AppError('NetworkUnavailable', 'down'))).toBe(false)
   })
 })

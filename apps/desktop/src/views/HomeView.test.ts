@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createApp } from 'vue'
 import { createMemoryHistory, createRouter, RouterLink } from 'vue-router'
 import { describe, expect, it, vi } from 'vitest'
-import type { Library, MediaItem, ServerProfile } from '@lumaroute/core'
+import { AppError, type Library, type MediaItem, type ServerProfile } from '@lumaroute/core'
 import { servicesKey } from '../composition/inject-services'
 import type { AppServices } from '../composition/service-types'
 import { useAppStore } from '../stores/app-store'
@@ -66,6 +66,7 @@ function mountHome(options: { activeServerId: string }) {
     history: createMemoryHistory(),
     routes: [
       { path: '/', name: 'home', component: HomeView },
+      { path: '/settings', name: 'settings', component: { template: '<div />' } },
       { path: '/library/:libraryId', name: 'library', component: { template: '<div />' } },
       { path: '/media/:itemId', name: 'media', component: { template: '<div />' } },
     ],
@@ -132,5 +133,27 @@ describe('HomeView', () => {
     expect(wrapper.text()).toContain('继续观看')
     expect(wrapper.text()).toContain(library.name)
     expect(wrapper.find('[data-testid="home-loading"]').exists()).toBe(false)
+  })
+
+  it('offers re-login from the home error when the credential expired', async () => {
+    const { wrapper, media, withStore } = mountHome({ activeServerId: 'profile-1' })
+    media.getLibraries.mockRejectedValueOnce(
+      new AppError('AuthenticationExpired', 'Server credential was rejected'),
+    )
+    await withStore((store) => store.loadHome('profile-1'))
+    await flushPromises()
+    expect(wrapper.get('[data-testid="home-error"]').text()).toMatch(/凭证/)
+    const link = wrapper.get('[data-testid="home-reauth"]')
+    expect(link.text()).toBe('重新登录')
+    expect(link.attributes('href')).toBe('/settings?reauth=1')
+  })
+
+  it('keeps plain retry guidance for network failures', async () => {
+    const { wrapper, media, withStore } = mountHome({ activeServerId: 'profile-1' })
+    media.getLibraries.mockRejectedValueOnce(new AppError('NetworkUnavailable', 'down'))
+    await withStore((store) => store.loadHome('profile-1'))
+    await flushPromises()
+    expect(wrapper.find('[data-testid="home-error"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="home-reauth"]').exists()).toBe(false)
   })
 })
