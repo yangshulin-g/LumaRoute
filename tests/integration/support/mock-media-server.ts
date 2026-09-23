@@ -13,6 +13,7 @@ export type Reply = {
   bytes?: Uint8Array
   contentType?: string
   requiredToken?: string
+  filterBySearchTerm?: boolean
 }
 
 export type RecordedRequest = {
@@ -59,6 +60,17 @@ function matchPatternReply(routes: Map<string, Reply>, pathname: string): Reply 
     if (regex.test(pathname)) return reply
   }
   return undefined
+}
+
+function filterItemsByName(payload: unknown, term: string): unknown {
+  if (!payload || typeof payload !== 'object' || !Array.isArray((payload as { Items?: unknown }).Items)) {
+    return payload
+  }
+  const needle = term.toLowerCase()
+  const items = (payload as { Items: { Name?: unknown }[] }).Items.filter(
+    (item) => typeof item.Name === 'string' && item.Name.toLowerCase().includes(needle),
+  )
+  return { ...payload, Items: items, TotalRecordCount: items.length }
 }
 
 async function readBody(request: IncomingMessage): Promise<unknown> {
@@ -147,7 +159,12 @@ export async function mockServer(): Promise<MockMediaServer> {
           : reply.fixture
             ? await loadFixture(reply.fixture)
             : {}
-      response.end(JSON.stringify(payload))
+      const searchTerm = url.searchParams.get('SearchTerm')
+      response.end(
+        JSON.stringify(
+          reply.filterBySearchTerm && searchTerm ? filterItemsByName(payload, searchTerm) : payload,
+        ),
+      )
     } catch (error) {
       response.statusCode = 500
       response.end(

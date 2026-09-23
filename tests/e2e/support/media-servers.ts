@@ -19,6 +19,22 @@ export type MediaServerFixtures = {
   close(): Promise<void>
 }
 
+export const SERVER_TWO_ONLY_TITLE = 'Solaris'
+
+const SERVER_TWO_ONLY_ITEM = {
+  Id: 'item-server-two-only',
+  Name: SERVER_TWO_ONLY_TITLE,
+  Type: 'Movie',
+  Overview: 'Only exists on Server Two.',
+  ProductionYear: 1972,
+  RunTimeTicks: 99000000000,
+  ParentId: null,
+  SeriesId: null,
+  IndexNumber: null,
+  ImageTags: {},
+  UserData: { PlaybackPositionTicks: 0 },
+}
+
 const FIXTURE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../fixtures')
 
 const POSTER_PNG = Uint8Array.from(
@@ -40,9 +56,12 @@ function installJellyfinSurface(
     userId: string
     token: string
     username: string
+    extraItems: readonly Record<string, unknown>[]
   },
 ): void {
-  const itemsFixture = loadJson('jellyfin/items.json')
+  const baseItems = loadJson('jellyfin/items.json') as { Items: Record<string, unknown>[] }
+  const allItems = [...baseItems.Items, ...options.extraItems]
+  const itemsFixture = { Items: allItems, TotalRecordCount: allItems.length }
   const librariesFixture = loadJson('jellyfin/libraries.json')
   const playbackInfoFixture = loadJson('jellyfin/playback-info.json')
 
@@ -63,7 +82,11 @@ function installJellyfinSurface(
     },
   })
   server.reply('/Library/VirtualFolders', { status: 200, body: librariesFixture })
-  server.reply(`/Users/${options.userId}/Items`, { status: 200, body: itemsFixture })
+  server.reply(`/Users/${options.userId}/Items`, {
+    status: 200,
+    body: itemsFixture,
+    filterBySearchTerm: true,
+  })
   server.reply(`/Users/${options.userId}/Items/Resume`, {
     status: 200,
     body: { Items: [], TotalRecordCount: 0 },
@@ -85,6 +108,7 @@ async function createLogicalServer(input: {
   serverId: string
   userId: string
   token: string
+  extraItems?: readonly Record<string, unknown>[]
 }): Promise<LogicalServerFixture> {
   const primary = await mockServer()
   const backup = await mockServer()
@@ -95,6 +119,7 @@ async function createLogicalServer(input: {
     userId: input.userId,
     token: input.token,
     username,
+    extraItems: input.extraItems ?? [],
   })
   installJellyfinSurface(backup, {
     serverId: input.serverId,
@@ -102,6 +127,7 @@ async function createLogicalServer(input: {
     userId: input.userId,
     token: input.token,
     username,
+    extraItems: input.extraItems ?? [],
   })
   return {
     name: input.name,
@@ -125,6 +151,7 @@ export async function startTwoMockMediaServers(): Promise<MediaServerFixtures> {
     serverId: 'server-two',
     userId: 'user-b',
     token: 'token-two',
+    extraItems: [SERVER_TWO_ONLY_ITEM],
   })
 
   return {

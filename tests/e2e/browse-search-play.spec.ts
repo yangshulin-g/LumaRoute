@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures'
+import { SERVER_TWO_ONLY_TITLE } from './support/media-servers'
 
 test('browses, searches, starts playback, and shows progress', async ({
   page,
@@ -40,4 +41,21 @@ test('uses the Aurora shell without widening current-server scope', async ({
   expect(posterSources.length).toBeGreaterThan(0)
   expect(posterSources.every((source) => source.startsWith('blob:'))).toBe(true)
   expect(posterSources.join(' ')).not.toMatch(/token|api_key|X-Emby-Token/i)
+})
+
+test('keeps search scoped to the active server', async ({ page, seedAuthenticatedProfiles }) => {
+  await seedAuthenticatedProfiles(page)
+  const search = page.getByTestId('current-server-search')
+  const cards = page.getByTestId('media-card')
+
+  await search.fill(SERVER_TWO_ONLY_TITLE)
+  await expect(page.getByTestId('search-no-results')).toBeVisible()
+  await expect(cards.filter({ hasText: SERVER_TWO_ONLY_TITLE })).toHaveCount(0)
+
+  await search.fill('Arrival')
+  await expect(cards.filter({ hasText: 'Arrival' })).toBeVisible()
+
+  await page.getByTestId('server-switcher').getByRole('button', { name: 'Server Two' }).click()
+  await search.fill(SERVER_TWO_ONLY_TITLE)
+  await expect(cards.filter({ hasText: SERVER_TWO_ONLY_TITLE })).toBeVisible()
 })
