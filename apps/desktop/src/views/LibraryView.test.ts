@@ -3,9 +3,10 @@ import { VueQueryPlugin, QueryClient } from '@tanstack/vue-query'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter, RouterLink } from 'vue-router'
 import { describe, expect, it, vi } from 'vitest'
-import type { MediaItem } from '@lumaroute/core'
+import type { MediaItem, ServerProfile } from '@lumaroute/core'
 import { servicesKey } from '../composition/inject-services'
 import type { AppServices } from '../composition/service-types'
+import { useServerStore } from '../stores/server-store'
 import LibraryView from './LibraryView.vue'
 
 const series: MediaItem = {
@@ -22,14 +23,34 @@ const series: MediaItem = {
   playbackPositionSeconds: 0,
 }
 
-function mountLibrary(options: { serverId: string; libraryId: string; items?: MediaItem[] }) {
+const profile: ServerProfile = {
+  id: 'profile-1',
+  name: 'Home',
+  kind: 'emby',
+  serverId: 'srv-1',
+  userId: 'u-1',
+  username: 'demo',
+  credentialKey: 'lumaroute/profile-1',
+  preferredLineId: 'line-2',
+  lines: [
+    { id: 'line-1', label: 'LAN', baseUrl: 'http://192.168.1.2:8096', priority: 0, enabled: true },
+    { id: 'line-2', label: 'WAN', baseUrl: 'https://media.example', priority: 1, enabled: true },
+  ],
+}
+
+function mountLibrary(options: {
+  serverId: string
+  libraryId: string
+  items?: MediaItem[]
+  lineId?: string
+}) {
   const items = options.items ?? [series]
   const media = {
     getLibraries: vi.fn(),
     getContinueWatching: vi.fn(),
     getItems: vi.fn().mockResolvedValue({
       value: { items, total: items.length, startIndex: 0 },
-      lineId: 'line-1',
+      lineId: options.lineId ?? 'line-1',
     }),
     search: vi.fn(),
   }
@@ -105,6 +126,34 @@ describe('LibraryView', () => {
     const { wrapper } = mountLibrary({ serverId: 'profile-1', libraryId: 'lib-1' })
     await flushPromises()
     expect(wrapper.get('[data-testid="library-count"]').text()).toBe('共 1 项')
+  })
+
+  it('shows the resolved active line label instead of the raw line id', async () => {
+    const { wrapper } = mountLibrary({ serverId: 'profile-1', libraryId: 'lib-1' })
+    wrapper.vm.$.appContext.app.runWithContext(() => {
+      useServerStore().profiles = [profile]
+    })
+    await flushPromises()
+    const line = wrapper.get('[data-testid="active-line"]').text()
+    expect(line).toContain('LAN')
+    expect(line).not.toContain('line-1')
+    expect(line).not.toContain('WAN')
+  })
+
+  it('does not fall back to the preferred line when the reported line is unknown', async () => {
+    const { wrapper } = mountLibrary({
+      serverId: 'profile-1',
+      libraryId: 'lib-1',
+      lineId: 'line-unknown',
+    })
+    wrapper.vm.$.appContext.app.runWithContext(() => {
+      useServerStore().profiles = [profile]
+    })
+    await flushPromises()
+    const line = wrapper.get('[data-testid="active-line"]').text()
+    expect(line).toContain('尚无活动线路')
+    expect(line).not.toContain('line-unknown')
+    expect(line).not.toContain('WAN')
   })
 
   it('replaces the grid with an empty state when the library has no items', async () => {

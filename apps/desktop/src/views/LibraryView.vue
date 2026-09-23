@@ -2,9 +2,11 @@
 import { computed } from 'vue'
 import type { ItemQuery, MediaKind } from '@lumaroute/core'
 import VirtualPosterGrid from '../components/VirtualPosterGrid.vue'
+import { resolveLine } from '../presentation/line-presenters'
 import { useLibraryItems } from '../queries/use-library-items'
 import { useAppStore } from '../stores/app-store'
 import { useMediaStore } from '../stores/media-store'
+import { useServerStore } from '../stores/server-store'
 
 const props = defineProps<{
   serverId?: string
@@ -15,6 +17,7 @@ const props = defineProps<{
 
 const appStore = useAppStore()
 const mediaStore = useMediaStore()
+const serverStore = useServerStore()
 const serverId = computed(
   () => appStore.activeServerId ?? (props.serverId !== 'missing' ? props.serverId ?? '' : ''),
 )
@@ -39,6 +42,13 @@ const query = computed<ItemQuery>(() => {
 })
 
 const libraryQuery = useLibraryItems(serverId, query)
+
+const activeProfile = computed(
+  () => serverStore.profiles.find((profile) => profile.id === serverId.value) ?? null,
+)
+const activeLineLabel = computed(
+  () => resolveLine(activeProfile.value, mediaStore.activeLineId)?.label ?? null,
+)
 
 const items = computed(() => libraryQuery.data.value?.pages.flatMap((page) => page.items) ?? [])
 const hasNextPage = computed(() => Boolean(libraryQuery.hasNextPage.value))
@@ -70,7 +80,7 @@ async function loadNext(): Promise<void> {
         class="lr-muted line-note"
         data-testid="active-line"
       >
-        当前线路：{{ mediaStore.activeLineId ?? '—' }}
+        当前线路：{{ activeLineLabel ?? '尚无活动线路' }}
       </p>
     </header>
 

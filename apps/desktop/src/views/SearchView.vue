@@ -4,8 +4,10 @@ import { useRoute, useRouter } from 'vue-router'
 import type { MediaItem } from '@lumaroute/core'
 import { injectServices } from '../composition/inject-services'
 import VirtualPosterGrid from '../components/VirtualPosterGrid.vue'
+import { resolveLine } from '../presentation/line-presenters'
 import { useAppStore } from '../stores/app-store'
 import { useMediaStore } from '../stores/media-store'
+import { useServerStore } from '../stores/server-store'
 
 const props = defineProps<{
   activeServerId?: string
@@ -14,6 +16,7 @@ const props = defineProps<{
 const services = injectServices()
 const appStore = useAppStore()
 const mediaStore = useMediaStore()
+const serverStore = useServerStore()
 const route = useRoute()
 const router = useRouter()
 const term = ref(typeof route.query.q === 'string' ? route.query.q : '')
@@ -22,6 +25,13 @@ let searchController: AbortController | null = null
 
 const resolvedServerId = computed(
   () => appStore.activeServerId ?? (props.activeServerId !== 'missing' ? props.activeServerId : null),
+)
+
+const activeProfile = computed(
+  () => serverStore.profiles.find((profile) => profile.id === resolvedServerId.value) ?? null,
+)
+const activeLineLabel = computed(
+  () => resolveLine(activeProfile.value, mediaStore.activeLineId)?.label ?? null,
 )
 
 const searchItems = computed<readonly MediaItem[]>(
@@ -126,7 +136,7 @@ if (term.value.trim()) {
         class="lr-muted line-note"
         data-testid="active-line"
       >
-        当前线路：{{ mediaStore.activeLineId ?? '—' }}
+        当前线路：{{ activeLineLabel ?? '尚无活动线路' }}
       </p>
     </header>
 

@@ -2,9 +2,10 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter, RouterLink } from 'vue-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { MediaItem } from '@lumaroute/core'
+import type { MediaItem, ServerProfile } from '@lumaroute/core'
 import { servicesKey } from '../composition/inject-services'
 import type { AppServices } from '../composition/service-types'
+import { useServerStore } from '../stores/server-store'
 import SearchView from './SearchView.vue'
 
 const movie: MediaItem = {
@@ -19,6 +20,21 @@ const movie: MediaItem = {
   indexNumber: null,
   imageTag: 'tag-1',
   playbackPositionSeconds: 0,
+}
+
+const profile: ServerProfile = {
+  id: 'profile-1',
+  name: 'Home',
+  kind: 'emby',
+  serverId: 'srv-1',
+  userId: 'u-1',
+  username: 'demo',
+  credentialKey: 'lumaroute/profile-1',
+  preferredLineId: 'line-2',
+  lines: [
+    { id: 'line-1', label: 'LAN', baseUrl: 'http://192.168.1.2:8096', priority: 0, enabled: true },
+    { id: 'line-2', label: 'WAN', baseUrl: 'https://media.example', priority: 1, enabled: true },
+  ],
 }
 
 function mountSearch(options: { activeServerId: string; results?: MediaItem[] }) {
@@ -94,6 +110,23 @@ describe('SearchView', () => {
     )
     await flushPromises()
     expect(wrapper.text()).toContain(movie.name)
+  })
+
+  it('shows the resolved active line label instead of the raw line id', async () => {
+    vi.useFakeTimers()
+    const { wrapper, router } = mountSearch({ activeServerId: 'profile-1' })
+    wrapper.vm.$.appContext.app.runWithContext(() => {
+      useServerStore().profiles = [profile]
+    })
+    await router.push('/search')
+    expect(wrapper.get('[data-testid="active-line"]').text()).toContain('尚无活动线路')
+    await wrapper.get('[name="search"]').setValue('Arrival')
+    await vi.advanceTimersByTimeAsync(250)
+    await flushPromises()
+    const line = wrapper.get('[data-testid="active-line"]').text()
+    expect(line).toContain('LAN')
+    expect(line).not.toContain('line-1')
+    expect(line).not.toContain('WAN')
   })
 
   it('replaces the grid with an empty state when the current server has no matches', async () => {
